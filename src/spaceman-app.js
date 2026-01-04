@@ -20,6 +20,106 @@ let clockInterval = null;
 let statsManager = new SpacemanStatsManager();
 let lastPredictionRisk = null;
 let currentSignalActive = false;
+let spacemanSignalState = 'none'; // 'none', 'entrada_pending', 'awaiting_result'
+
+// Sound system for Spaceman
+let spacemanAudioContext = null;
+function initSpacemanAudioContext() {
+    if (!spacemanAudioContext) {
+        spacemanAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playSpacemanSound(frequency, duration, type = 'sine') {
+    const soundEnabled = window.soundEnabled !== undefined ? window.soundEnabled : true;
+    if (!soundEnabled) return;
+    try {
+        initSpacemanAudioContext();
+        const oscillator = spacemanAudioContext.createOscillator();
+        const gainNode = spacemanAudioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(spacemanAudioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = type;
+        
+        gainNode.gain.setValueAtTime(0.3, spacemanAudioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, spacemanAudioContext.currentTime + duration);
+        
+        oscillator.start(spacemanAudioContext.currentTime);
+        oscillator.stop(spacemanAudioContext.currentTime + duration);
+    } catch (e) {
+        console.warn('Sound playback failed:', e);
+    }
+}
+
+function playSpacemanNotificationSound(type) {
+    const soundEnabled = window.soundEnabled !== undefined ? window.soundEnabled : true;
+    if (!soundEnabled) return;
+    switch(type) {
+        case 'entrada':
+            playSpacemanSound(523.25, 0.2);
+            setTimeout(() => playSpacemanSound(659.25, 0.2), 150);
+            break;
+        case 'win':
+            playSpacemanSound(523.25, 0.15);
+            setTimeout(() => playSpacemanSound(659.25, 0.15), 100);
+            setTimeout(() => playSpacemanSound(783.99, 0.3), 200);
+            break;
+        case 'loss':
+            playSpacemanSound(392.00, 0.3, 'sawtooth');
+            setTimeout(() => playSpacemanSound(329.63, 0.4, 'sawtooth'), 200);
+            break;
+        case 'retry':
+            playSpacemanSound(440.00, 0.2);
+            setTimeout(() => playSpacemanSound(493.88, 0.3), 150);
+            break;
+    }
+}
+
+function displaySpacemanSignalMessage(type, message) {
+    const signalOverlayMessage = document.getElementById('spaceman-signal-overlay-message');
+    if (!signalOverlayMessage) return;
+    
+    signalOverlayMessage.textContent = message;
+    signalOverlayMessage.classList.remove('entrada', 'acierto', 'fail_retry', 'fallo');
+    signalOverlayMessage.classList.add(type);
+    signalOverlayMessage.style.display = 'block';
+    signalOverlayMessage.classList.remove('fade-in');
+    void signalOverlayMessage.offsetWidth; // Trigger reflow to restart animation
+    signalOverlayMessage.classList.add('fade-in');
+    
+    // Play notification sound
+    if (type === 'entrada') {
+        playSpacemanNotificationSound('entrada');
+    } else if (type === 'acierto') {
+        playSpacemanNotificationSound('win');
+    } else if (type === 'fallo') {
+        playSpacemanNotificationSound('loss');
+    } else if (type === 'fail_retry') {
+        playSpacemanNotificationSound('retry');
+    }
+    
+    // Browser notification
+    const notificationsEnabled = window.notificationsEnabled !== undefined ? window.notificationsEnabled : true;
+    if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(message, {
+            icon: '/vite.svg',
+            tag: 'spaceman-signal'
+        });
+    }
+}
+
+function clearSpacemanSignalMessage() {
+    const signalOverlayMessage = document.getElementById('spaceman-signal-overlay-message');
+    if (!signalOverlayMessage) return;
+    
+    signalOverlayMessage.classList.remove('fade-in');
+    signalOverlayMessage.style.display = 'none';
+    signalOverlayMessage.textContent = '';
+    signalOverlayMessage.classList.remove('entrada', 'acierto', 'fail_retry', 'fallo');
+}
 
 function initializeSockets() {
     spacemenSocket = new WebSocket(spacemanConfig.websocketUrl);
@@ -201,12 +301,18 @@ function updatePrediction() {
     predictionEl.setAttribute('data-risk', analysis.risk);
     
     // Track signals when prediction indicates entry
-    if (analysis.risk === 'low' && analysis.prediction.includes('entrada')) {
+    if (analysis.shouldGenerateSignal && spacemanSignalState === 'none') {
+        spacemanSignalState = 'entrada_pending';
+        displaySpacemanSignalMessage('entrada', 'ENTRADA CONFIRMADA');
+        
         if (!currentSignalActive && statsManager.bankManagementEnabled) {
             statsManager.startSignal();
             currentSignalActive = true;
             console.log('Spaceman signal started');
         }
+    } else if (!analysis.shouldGenerateSignal && spacemanSignalState === 'entrada_pending') {
+        // Signal was generated but no longer valid - reset state
+        // Don't reset here, let trackSpacemanSignalResult handle it
     }
     
     // If prediction changes from low risk to something else, don't reset immediately
@@ -768,15 +874,23 @@ function trackSpacemanSignalResult(resultValue) {
             }
             
             if (statsManager.signalAttemptState === 0) {
+                // Win on first attempt
+                displaySpacemanSignalMessage('acierto', '¡ACIERTO!');
                 statsManager.recordWin(1);
                 statsManager.signalAttemptState = 0; // Reset
                 currentSignalActive = false;
+                spacemanSignalState = 'none';
+                clearSpacemanSignalMessage();
                 updateSpacemanHistoryDisplay();
                 updateSpacemanStatistics();
             } else if (statsManager.signalAttemptState === 1) {
+                // Win on second attempt
+                displaySpacemanSignalMessage('acierto', '¡ACIERTO!');
                 statsManager.recordWin(2);
                 statsManager.signalAttemptState = 0; // Reset
                 currentSignalActive = false;
+                spacemanSignalState = 'none';
+                clearSpacemanSignalMessage();
                 updateSpacemanHistoryDisplay();
                 updateSpacemanStatistics();
             }
@@ -792,12 +906,17 @@ function trackSpacemanSignalResult(resultValue) {
         if (statsManager.signalAttemptState === 0) {
             // First attempt failed - mark state but don't record loss yet
             statsManager.signalAttemptState = 1;
+            spacemanSignalState = 'awaiting_result';
+            displaySpacemanSignalMessage('fail_retry', 'SEGUNDO INTENTO');
             // The recordLoss/recordWin methods will handle the state
         } else if (statsManager.signalAttemptState === 1) {
             // Second attempt also failed - record total loss
+            displaySpacemanSignalMessage('fallo', '¡FALLO!');
             statsManager.recordLoss();
             statsManager.signalAttemptState = 0; // Reset
             currentSignalActive = false;
+            spacemanSignalState = 'none';
+            clearSpacemanSignalMessage();
             updateSpacemanHistoryDisplay();
             updateSpacemanStatistics();
         }

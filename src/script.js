@@ -2155,29 +2155,46 @@ document.addEventListener('DOMContentLoaded', () => {
             let strategyName = '';
 
             // Check strategy based on selection
-            switch (selectedStrategy) {
-                case 'momentum_hybrid':
-                    shouldGenerateSignal = this.checkMomentumHybridStrategy();
-                    strategyName = 'Momentum Híbrido';
-                    break;
-                case 'mean_reversion_rsi':
-                    shouldGenerateSignal = this.checkMeanReversionRSIStrategy();
-                    strategyName = 'Mean Reversion + RSI';
-                    break;
-                case 'engulfing':
-                    shouldGenerateSignal = this.checkEngulfingPatternStrategy();
-                    strategyName = 'Engulfing Pattern';
-                    break;
-                case 'original':
-                default:
-                    shouldGenerateSignal = this.checkOriginalStrategy();
+            if (selectedStrategy === 'automatic') {
+                // Check all strategies - if any matches, generate signal
+                if (this.checkOriginalStrategy()) {
+                    shouldGenerateSignal = true;
                     strategyName = 'Original (EMA + Vela)';
-                    break;
+                } else if (this.checkMomentumHybridStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Momentum Híbrido';
+                } else if (this.checkMeanReversionRSIStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Mean Reversion + RSI';
+                } else if (this.checkEngulfingPatternStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Engulfing Pattern';
+                }
+            } else {
+                switch (selectedStrategy) {
+                    case 'momentum_hybrid':
+                        shouldGenerateSignal = this.checkMomentumHybridStrategy();
+                        strategyName = 'Momentum Híbrido';
+                        break;
+                    case 'mean_reversion_rsi':
+                        shouldGenerateSignal = this.checkMeanReversionRSIStrategy();
+                        strategyName = 'Mean Reversion + RSI';
+                        break;
+                    case 'engulfing':
+                        shouldGenerateSignal = this.checkEngulfingPatternStrategy();
+                        strategyName = 'Engulfing Pattern';
+                        break;
+                    case 'original':
+                    default:
+                        shouldGenerateSignal = this.checkOriginalStrategy();
+                        strategyName = 'Original (EMA + Vela)';
+                        break;
+                }
             }
 
             if (shouldGenerateSignal) {
                 this.signalState.status = 'entrada_pending';
-                this.displaySignalMessage('entrada', '¡ENTRADA!'); // Display message
+                this.displaySignalMessage('entrada', 'ENTRADA CONFIRMADA'); // Display message
                 apuesta1Label.classList.add('highlight-apuesta1'); // Highlight Apuesta 1
 
                 this.signalState.consecutiveEntradas++;
@@ -2344,7 +2361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else {
                     // Loss condition: 1.80/1.99 or lower - mark as loss and proceed to second attempt
-                    this.displaySignalMessage('fail_retry', 'SEGUNDA OPORTUNIDAD, GESTIONA CORRECTAMENTE');
+                    this.displaySignalMessage('fail_retry', 'SEGUNDO INTENTO');
                     this.signalState.status = 'awaiting_result';
                     this.currentBetAttempt = 2;
                     // Apuesta1 was already deducted, no need to deduct again

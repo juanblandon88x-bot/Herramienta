@@ -484,6 +484,7 @@
                     <div class="setting-item">
                         <label for="strategy-selector">Estrategia:</label>
                         <select id="strategy-selector">
+                            <option value="automatic">Automático (Cualquiera de las 4 estrategias)</option>
                             <option value="original">Original (EMA + Vela) - 22-30%</option>
                             <option value="momentum_hybrid">Momentum Híbrido - 75-80%</option>
                             <option value="mean_reversion_rsi">Mean Reversion + RSI - 65-75%</option>
@@ -589,6 +590,7 @@
                                 <canvas id="spaceTrendChart"></canvas>
                                 <canvas id="spaceTrendLineChart"></canvas>
                             </div>
+                            <div id="spaceman-signal-overlay-message" class="signal-message"></div> <!-- Signal messages for Spaceman -->
                             <div id="spaceman-prediction" class="spaceman-prediction-overlay">
                                 <div class="spaceman-prediction-text">Cargando...</div>
                             </div>

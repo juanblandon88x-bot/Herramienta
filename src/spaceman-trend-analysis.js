@@ -87,57 +87,336 @@ export function getStrengthAndColor(value) {
     return { strength: 10, color: '#26a69a' };
 }
 
+// Helper functions for strategies (same as Aviator)
+function calculateRSI(candles, period = 14) {
+    if (candles.length < period + 1) return null;
+    
+    const closes = candles.map(c => c.c);
+    const changes = [];
+    for (let i = 1; i < closes.length; i++) {
+        changes.push(closes[i] - closes[i - 1]);
+    }
+    
+    let gains = 0;
+    let losses = 0;
+    
+    // Calculate initial average gain and loss
+    for (let i = 0; i < period; i++) {
+        if (changes[i] > 0) {
+            gains += changes[i];
+        } else {
+            losses += Math.abs(changes[i]);
+        }
+    }
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    
+    // Calculate RSI using Wilder's smoothing method
+    for (let i = period; i < changes.length; i++) {
+        const change = changes[i];
+        if (change > 0) {
+            avgGain = (avgGain * (period - 1) + change) / period;
+            avgLoss = (avgLoss * (period - 1)) / period;
+        } else {
+            avgGain = (avgGain * (period - 1)) / period;
+            avgLoss = (avgLoss * (period - 1) + Math.abs(change)) / period;
+        }
+    }
+    
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    const rsi = 100 - (100 / (1 + rs));
+    
+    return rsi;
+}
+
+function getTrend(candles, emaFast, emaSlow) {
+    if (candles.length < 5 || !emaFast || !emaSlow || emaFast.length < 1 || emaSlow.length < 1) {
+        return 'neutral';
+    }
+    
+    const lastEmaFast = emaFast[emaFast.length - 1];
+    const lastEmaSlow = emaSlow[emaSlow.length - 1];
+    
+    if (lastEmaFast === null || lastEmaSlow === null) {
+        return 'neutral';
+    }
+    
+    const trendTolerance = 0.005;
+    
+    if (lastEmaFast > lastEmaSlow + trendTolerance) {
+        return 'alcista';
+    } else if (lastEmaFast < lastEmaSlow - trendTolerance) {
+        return 'bajista';
+    } else {
+        return 'lateral';
+    }
+}
+
+function isNearSupport(price, candles, tolerance = 0.03) {
+    const values = candles.map(c => c.c);
+    if (values.length < 5) return false;
+    
+    const { support } = calculateSupportResistanceFromValues(values);
+    if (!support) return false;
+    
+    const distance = Math.abs(price - support) / support;
+    return distance <= tolerance;
+}
+
+function isNearResistance(price, candles, tolerance = 0.02) {
+    const values = candles.map(c => c.c);
+    if (values.length < 5) return false;
+    
+    const { resistance } = calculateSupportResistanceFromValues(values);
+    if (!resistance) return false;
+    
+    const distance = Math.abs(price - resistance) / resistance;
+    return distance <= tolerance;
+}
+
+function calculateSupportResistanceFromValues(values) {
+    if (values.length < 5) return { supports: [], resistances: [] };
+    const lookbackPeriod = Math.min(values.length, 20);
+    
+    const swingLows = [];
+    const swingHighs = [];
+    
+    for (let i = 1; i < values.length - 1; i++) {
+        if (values[i] < values[i - 1] && values[i] < values[i + 1]) {
+            swingLows.push({ index: i, value: values[i] });
+        }
+        if (values[i] > values[i - 1] && values[i] > values[i + 1]) {
+            swingHighs.push({ index: i, value: values[i] });
+        }
+    }
+    
+    swingLows.sort((a, b) => b.index - a.index);
+    swingHighs.sort((a, b) => b.index - a.index);
+    
+    const support = swingLows.length > 0 ? swingLows[0].value : null;
+    const resistance = swingHighs.length > 0 ? swingHighs[0].value : null;
+    
+    return { support, resistance };
+}
+
+function hasBullishMomentum(candles, periods = 3) {
+    if (candles.length < periods + 1) return false;
+    
+    const recentCandles = candles.slice(-periods - 1);
+    const closes = recentCandles.map(c => c.c);
+    
+    for (let i = 1; i < closes.length; i++) {
+        if (closes[i] <= closes[i - 1]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function hasBullishEngulfing(candles) {
+    if (candles.length < 2) return false;
+    
+    const prevCandle = candles[candles.length - 2];
+    const currentCandle = candles[candles.length - 1];
+    
+    const prevIsBearish = prevCandle.c < prevCandle.o;
+    const currentIsBullish = currentCandle.c > currentCandle.o;
+    const engulfs = currentCandle.o < prevCandle.c && currentCandle.c > prevCandle.o;
+    
+    const currentBody = Math.abs(currentCandle.c - currentCandle.o);
+    const prevBody = Math.abs(prevCandle.c - prevCandle.o);
+    const bodyLarger = currentBody > prevBody;
+    
+    return prevIsBearish && currentIsBullish && engulfs && bodyLarger;
+}
+
+function getTrendStrength(emaFast, emaSlow) {
+    if (!emaFast || !emaSlow || emaFast.length < 1 || emaSlow.length < 1) return 0;
+    
+    const lastEmaFast = emaFast[emaFast.length - 1];
+    const lastEmaSlow = emaSlow[emaSlow.length - 1];
+    
+    if (lastEmaFast === null || lastEmaSlow === null || lastEmaSlow === 0) return 0;
+    
+    return ((lastEmaFast - lastEmaSlow) / lastEmaSlow) * 100;
+}
+
+function getCandleBodySize(candle) {
+    if (!candle) return 0;
+    const range = candle.h - candle.l;
+    if (range === 0) return 0;
+    const body = Math.abs(candle.c - candle.o);
+    return (body / range) * 100;
+}
+
+// Strategy functions (same as Aviator)
+function checkOriginalStrategy(candles, trend, emaFast, emaSlow) {
+    const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+    const isBullishCandle = lastCandle && lastCandle.c >= lastCandle.o;
+    
+    return trend === 'alcista' && candles.length >= 5 && isBullishCandle;
+}
+
+function checkMomentumHybridStrategy(candles, trend, emaFast, emaSlow) {
+    if (candles.length < 10) return false;
+    if (trend !== 'alcista') return false;
+    
+    const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+    if (!lastCandle) return false;
+    
+    const currentPrice = lastCandle.c;
+    const rsi = calculateRSI(candles, 14);
+    if (rsi === null) return false;
+    
+    const hasMomentum = hasBullishMomentum(candles, 3);
+    const rsiInRange = rsi >= 40 && rsi <= 60;
+    const nearSupport = isNearSupport(currentPrice, candles, 0.03);
+    const trendStrength = getTrendStrength(emaFast, emaSlow);
+    const strongTrend = trendStrength > 1.0;
+    const isBullishCandle = lastCandle.c >= lastCandle.o;
+    const bodySize = getCandleBodySize(lastCandle);
+    const strongCandle = bodySize > 50;
+    const notNearResistance = !isNearResistance(currentPrice, candles, 0.02);
+    
+    return hasMomentum && rsiInRange && nearSupport && strongTrend && isBullishCandle && strongCandle && notNearResistance;
+}
+
+function checkMeanReversionRSIStrategy(candles, trend, emaFast, emaSlow) {
+    if (candles.length < 14) return false;
+    if (trend !== 'alcista') return false;
+    
+    const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+    if (!lastCandle) return false;
+    
+    const currentPrice = lastCandle.c;
+    const rsi = calculateRSI(candles, 14);
+    if (rsi === null) return false;
+    
+    const oversold = rsi < 30;
+    const nearSupport = isNearSupport(currentPrice, candles, 0.03);
+    const bullishTrend = trend === 'alcista';
+    const isBullishCandle = lastCandle.c >= lastCandle.o;
+    
+    return oversold && nearSupport && bullishTrend && isBullishCandle;
+}
+
+function checkEngulfingPatternStrategy(candles, trend, emaFast, emaSlow) {
+    if (candles.length < 2) return false;
+    if (trend !== 'alcista') return false;
+    
+    const lastCandle = candles.length > 0 ? candles[candles.length - 1] : null;
+    if (!lastCandle) return false;
+    
+    const currentPrice = lastCandle.c;
+    const hasEngulfing = hasBullishEngulfing(candles);
+    const nearSupport = isNearSupport(currentPrice, candles, 0.03);
+    const bullishTrend = trend === 'alcista';
+    
+    return hasEngulfing && nearSupport && bullishTrend;
+}
+
 export function analyzeTrend(results, trendChart, config, ema3, ema5) {
     if (!trendChart || !trendChart.data || !trendChart.data.datasets || trendChart.data.datasets[0].data.length < 2) {
         return {
             prediction: "Cargando Datos...",
             confidence: 0,
-            risk: 'wait'
+            risk: 'wait',
+            shouldGenerateSignal: false
         };
     }
 
-    const data = trendChart.data.datasets[0].data;
-
-    // 1. Bullish Engulfing - Look for the red candle *before* the engulfing green candle.
-    if (data.length >= 2 && data[data.length - 2].c < data[data.length - 2].o) {
-        // Previous candle was red.  Now we prompt for the green engulfing candle.
-        return {
-            prediction: "🔍 Zona de posible entrada👨‍🎓Confirma con Grafico",
-            confidence: 0.5,
-            risk: 'low'
-        };
-    }
-    // 2. Confirmation with Higher Close - look for one green candle before, and prompt for second
-     else if (data.length >= 1 && data[data.length - 1].c > data[data.length - 1].o) {
-        return {
-            prediction: "🔍 Zona de posible entrada👨‍🎓Confirma con Grafico",
-            confidence: 0.5,
-            risk: 'low'
-        };
-    }
-
-    // 3. Pattern of Long Body and Body Short
-    else if (data.length >= 1 && data[data.length - 1].c > data[data.length - 1].o) {
-        return {
-            prediction: " 🔍 Zona de posible entrada👨‍🎓Confirma con Grafico",
-            confidence: 0.5,
-            risk: 'low'
-        };
-    }
-    //4. Check support/resistance broken
-      else if (data.length >= 1 && data[data.length - 1].c > data[data.length - 1].o) {
-        return {
-            prediction: "🔍 🔍 Zona de posible entrada👨‍🎓Confirma con Grafico",
-            confidence: 0.5,
-            risk: 'low'
-        };
-    }
-
-    else {
+    const candles = trendChart.data.datasets[0].data;
+    if (candles.length < 2) {
         return {
             prediction: "Esperando Señal...",
             confidence: 0,
-            risk: 'wait'
+            risk: 'wait',
+            shouldGenerateSignal: false
         };
     }
+    
+    // Calculate EMAs for trend detection
+    const closes = candles.map(c => c.c);
+    const emaFastArray = [];
+    const emaSlowArray = [];
+    const emaFastPeriod = 5;
+    const emaSlowPeriod = 10;
+    
+    // Calculate EMA Fast (5)
+    if (closes.length >= emaFastPeriod) {
+        let multiplier = 2 / (emaFastPeriod + 1);
+        let sma = closes.slice(0, emaFastPeriod).reduce((a, b) => a + b, 0) / emaFastPeriod;
+        emaFastArray.push(sma);
+        for (let i = emaFastPeriod; i < closes.length; i++) {
+            emaFastArray.push((closes[i] - emaFastArray[emaFastArray.length - 1]) * multiplier + emaFastArray[emaFastArray.length - 1]);
+        }
+        // Pad with nulls
+        for (let i = 0; i < emaFastPeriod - 1; i++) {
+            emaFastArray.unshift(null);
+        }
+    }
+    
+    // Calculate EMA Slow (10)
+    if (closes.length >= emaSlowPeriod) {
+        let multiplier = 2 / (emaSlowPeriod + 1);
+        let sma = closes.slice(0, emaSlowPeriod).reduce((a, b) => a + b, 0) / emaSlowPeriod;
+        emaSlowArray.push(sma);
+        for (let i = emaSlowPeriod; i < closes.length; i++) {
+            emaSlowArray.push((closes[i] - emaSlowArray[emaSlowArray.length - 1]) * multiplier + emaSlowArray[emaSlowArray.length - 1]);
+        }
+        // Pad with nulls
+        for (let i = 0; i < emaSlowPeriod - 1; i++) {
+            emaSlowArray.unshift(null);
+        }
+    }
+    
+    // Get trend (don't operate in bearish trend)
+    const trend = getTrend(candles, emaFastArray, emaSlowArray);
+    
+    // Don't operate in bearish trend
+    if (trend === 'bajista') {
+        return {
+            prediction: "Esperando Señal...",
+            confidence: 0,
+            risk: 'wait',
+            shouldGenerateSignal: false
+        };
+    }
+    
+    // Check all strategies (like automatic mode in Aviator)
+    let shouldGenerateSignal = false;
+    let strategyName = '';
+    
+    if (checkOriginalStrategy(candles, trend, emaFastArray, emaSlowArray)) {
+        shouldGenerateSignal = true;
+        strategyName = 'Original';
+    } else if (checkMomentumHybridStrategy(candles, trend, emaFastArray, emaSlowArray)) {
+        shouldGenerateSignal = true;
+        strategyName = 'Momentum Híbrido';
+    } else if (checkMeanReversionRSIStrategy(candles, trend, emaFastArray, emaSlowArray)) {
+        shouldGenerateSignal = true;
+        strategyName = 'Mean Reversion + RSI';
+    } else if (checkEngulfingPatternStrategy(candles, trend, emaFastArray, emaSlowArray)) {
+        shouldGenerateSignal = true;
+        strategyName = 'Engulfing Pattern';
+    }
+    
+    if (shouldGenerateSignal) {
+        return {
+            prediction: "ENTRADA CONFIRMADA",
+            confidence: 0.8,
+            risk: 'low',
+            shouldGenerateSignal: true,
+            strategyName: strategyName
+        };
+    }
+    
+    return {
+        prediction: "Esperando Señal...",
+        confidence: 0,
+        risk: 'wait',
+        shouldGenerateSignal: false
+    };
 }
