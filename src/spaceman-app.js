@@ -319,7 +319,7 @@ function updatePrediction() {
     // Let the result tracking handle it
     lastPredictionRisk = analysis.risk;
     
-    const support = calculateSupportResistance(results, trendData);
+    const support = calculateSupportResistance(results);
     updateSupportResistanceDisplay(support.support, support.resistance);
 }
 
