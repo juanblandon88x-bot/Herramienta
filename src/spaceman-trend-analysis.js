@@ -274,10 +274,14 @@ function getCandleBodySize(candle) {
 }
 
 // ========== NUEVAS ESTRATEGIAS POR RONDAS ==========
+// TODAS verifican tendencia NO bajista para mejorar efectividad
 
 // 1. Confirmación Doble por Señal (72%–80%)
 // Condición: Ronda anterior >= 1.50x Y no hay 2 rojas (<1.30x) seguidas
-function checkConfirmacionDobleStrategy(multipliers) {
+function checkConfirmacionDobleStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     if (multipliers.length < 2) return false;
     
     const lastRound = multipliers[multipliers.length - 1];
@@ -298,7 +302,10 @@ function checkConfirmacionDobleStrategy(multipliers) {
 
 // 2. Señal + Ronda Verde Previa (70%–77%)
 // Condición: Ronda anterior >= 1.70x
-function checkRondaVerdeStrategy(multipliers) {
+function checkRondaVerdeStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     if (multipliers.length < 1) return false;
     
     const lastRound = multipliers[multipliers.length - 1];
@@ -307,7 +314,10 @@ function checkRondaVerdeStrategy(multipliers) {
 
 // 3. Bloque de 2 Señales (68%–74%)
 // Condición: 2 señales consecutivas Y Min(rondas intermedias) >= 1.20x
-function checkBloque2SenalesStrategy(multipliers) {
+function checkBloque2SenalesStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     const state = spacemanStrategyState;
     
     // Si ya tenemos una señal pendiente, verificar si podemos generar la segunda
@@ -345,7 +355,10 @@ function checkBloque2SenalesStrategy(multipliers) {
 
 // 4. Ventana Limpia (67%–73%)
 // Condición: Max 1 roja (<1.30x) en últimas 5 Y ningún >20x
-function checkVentanaLimpiaStrategy(multipliers) {
+function checkVentanaLimpiaStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     if (multipliers.length < 5) return false;
     
     const last5 = multipliers.slice(-5);
@@ -363,7 +376,10 @@ function checkVentanaLimpiaStrategy(multipliers) {
 
 // 5. Filtro Anti-Pico (66%–72%)
 // Condición: Max(últimas 3) < 10x
-function checkFiltroAntiPicoStrategy(multipliers) {
+function checkFiltroAntiPicoStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     if (multipliers.length < 3) return false;
     
     const last3 = multipliers.slice(-3);
@@ -374,7 +390,10 @@ function checkFiltroAntiPicoStrategy(multipliers) {
 
 // 6. Señal Escalonada Conservadora (64%–70%)
 // Condición: Ronda[-1] >= 1.40x Y Ronda[-2] >= 1.40x
-function checkSenalEscalonadaStrategy(multipliers) {
+function checkSenalEscalonadaStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     if (multipliers.length < 2) return false;
     
     const lastRound = multipliers[multipliers.length - 1];
@@ -385,7 +404,10 @@ function checkSenalEscalonadaStrategy(multipliers) {
 
 // 7. Señal Única por Ciclo (62%–68%)
 // Condición: 1 apuesta por ciclo, reset cuando <1.30x o >5x
-function checkSenalUnicaCicloStrategy(multipliers) {
+function checkSenalUnicaCicloStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     const state = spacemanStrategyState;
     
     if (multipliers.length < 1) return false;
@@ -411,7 +433,10 @@ function checkSenalUnicaCicloStrategy(multipliers) {
 
 // 8. Entrada Tardía Controlada (60%–66%)
 // Condición: Señal activa → esperar, si Ronda[+1] >= 1.30x → entrar
-function checkEntradaTardiaStrategy(multipliers) {
+function checkEntradaTardiaStrategy(multipliers, trend) {
+    // NO operar en tendencia bajista
+    if (trend === 'bajista') return false;
+    
     const state = spacemanStrategyState;
     
     if (multipliers.length < 2) return false;
@@ -587,32 +612,34 @@ export function analyzeTrend(results, trendChart, config, ema3, ema5) {
     }
     
     // Check all strategies (automatic mode - check all 12 strategies)
+    // Todas las estrategias verifican tendencia NO bajista internamente
     let shouldGenerateSignal = false;
     let strategyName = '';
     
     // Primero las estrategias por rondas (mayor efectividad)
-    if (multipliers.length >= 2 && checkConfirmacionDobleStrategy(multipliers)) {
+    // Todas reciben el parámetro de tendencia para filtrar
+    if (multipliers.length >= 2 && checkConfirmacionDobleStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Confirmación Doble (72-80%)';
-    } else if (multipliers.length >= 1 && checkRondaVerdeStrategy(multipliers)) {
+    } else if (multipliers.length >= 1 && checkRondaVerdeStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Ronda Verde Previa (70-77%)';
-    } else if (multipliers.length >= 2 && checkBloque2SenalesStrategy(multipliers)) {
+    } else if (multipliers.length >= 2 && checkBloque2SenalesStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Bloque 2 Señales (68-74%)';
-    } else if (multipliers.length >= 5 && checkVentanaLimpiaStrategy(multipliers)) {
+    } else if (multipliers.length >= 5 && checkVentanaLimpiaStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Ventana Limpia (67-73%)';
-    } else if (multipliers.length >= 3 && checkFiltroAntiPicoStrategy(multipliers)) {
+    } else if (multipliers.length >= 3 && checkFiltroAntiPicoStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Filtro Anti-Pico (66-72%)';
-    } else if (multipliers.length >= 2 && checkSenalEscalonadaStrategy(multipliers)) {
+    } else if (multipliers.length >= 2 && checkSenalEscalonadaStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Señal Escalonada (64-70%)';
-    } else if (multipliers.length >= 1 && checkSenalUnicaCicloStrategy(multipliers)) {
+    } else if (multipliers.length >= 1 && checkSenalUnicaCicloStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Señal Única Ciclo (62-68%)';
-    } else if (multipliers.length >= 2 && checkEntradaTardiaStrategy(multipliers)) {
+    } else if (multipliers.length >= 2 && checkEntradaTardiaStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Entrada Tardía (60-66%)';
     }

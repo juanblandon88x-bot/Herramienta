@@ -2154,10 +2154,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // ========== NUEVAS ESTRATEGIAS POR RONDAS ==========
+        // TODAS verifican tendencia NO bajista para mejorar efectividad
 
         // 1. Confirmación Doble por Señal (72%–80%)
         // Condición: Ronda anterior >= 1.50x Y no hay 2 rojas (<1.30x) seguidas
         checkConfirmacionDobleStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const multipliers = this.originalMultipliers;
             if (multipliers.length < 2) return false;
             
@@ -2180,6 +2185,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Señal + Ronda Verde Previa (70%–77%)
         // Condición: Ronda anterior >= 1.70x (o >= cashout objetivo)
         checkRondaVerdeStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const multipliers = this.originalMultipliers;
             if (multipliers.length < 1) return false;
             
@@ -2192,6 +2201,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 3. Bloque de 2 Señales (68%–74%)
         // Condición: 2 señales consecutivas Y Min(rondas intermedias) >= 1.20x
         checkBloque2SenalesStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const state = this.newStrategyState;
             const multipliers = this.originalMultipliers;
             
@@ -2231,6 +2244,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 4. Ventana Limpia (67%–73%)
         // Condición: Max 1 roja (<1.30x) en últimas 5 Y ningún >20x
         checkVentanaLimpiaStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const multipliers = this.originalMultipliers;
             if (multipliers.length < 5) return false;
             
@@ -2250,6 +2267,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 5. Filtro Anti-Pico (66%–72%)
         // Condición: Max(últimas 3) < 10x
         checkFiltroAntiPicoStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const multipliers = this.originalMultipliers;
             if (multipliers.length < 3) return false;
             
@@ -2262,6 +2283,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 6. Señal Escalonada Conservadora (64%–70%)
         // Condición: Ronda[-1] >= 1.40x Y Ronda[-2] >= 1.40x
         checkSenalEscalonadaStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const multipliers = this.originalMultipliers;
             if (multipliers.length < 2) return false;
             
@@ -2274,6 +2299,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 7. Señal Única por Ciclo (62%–68%)
         // Condición: 1 apuesta por ciclo, reset cuando <1.30x o >5x
         checkSenalUnicaCicloStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const state = this.newStrategyState;
             const multipliers = this.originalMultipliers;
             
@@ -2301,6 +2330,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 8. Entrada Tardía Controlada (60%–66%)
         // Condición: Señal activa → esperar, si Ronda[+1] >= 1.30x → entrar
         checkEntradaTardiaStrategy() {
+            // NO operar en tendencia bajista
+            const currentTrend = this.getTrend();
+            if (currentTrend === 'bajista') return false;
+            
             const state = this.newStrategyState;
             const multipliers = this.originalMultipliers;
             
