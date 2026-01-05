@@ -403,6 +403,19 @@ document.addEventListener('DOMContentLoaded', () => {
             this.signalHistory = []; // Array to store all signal history entries
             this.currentSignalEntry = null; // Track current signal being processed
 
+            // Original multipliers storage (for round-based strategies)
+            this.originalMultipliers = []; // Stores actual multipliers (1.50x, 2.30x, etc.)
+            
+            // State for new round-based strategies
+            this.newStrategyState = {
+                consecutiveSignals: 0,        // Para Bloque de 2 Señales
+                lastSignalRounds: [],         // Rondas entre señales
+                cycleActive: false,           // Para Señal Única por Ciclo
+                waitingForConfirmation: false, // Para Entrada Tardía
+                pendingEntryRound: null,      // Para Entrada Tardía
+                lastSignalIndex: -1           // Índice de la última señal generada
+            };
+
             // D3 chart elements and scales (initialized in initChart)
             this.chartContainer = document.getElementById('chart-container');
             this.svg = d3.select("#chart");
@@ -2140,6 +2153,202 @@ document.addEventListener('DOMContentLoaded', () => {
             return hasEngulfing && nearSupport && bullishTrend;
         }
 
+        // ========== NUEVAS ESTRATEGIAS POR RONDAS ==========
+
+        // 1. Confirmación Doble por Señal (72%–80%)
+        // Condición: Ronda anterior >= 1.50x Y no hay 2 rojas (<1.30x) seguidas
+        checkConfirmacionDobleStrategy() {
+            const multipliers = this.originalMultipliers;
+            if (multipliers.length < 2) return false;
+            
+            const lastRound = multipliers[multipliers.length - 1];
+            
+            // Verificar que la ronda anterior sea >= 1.50x
+            if (lastRound < 1.50) return false;
+            
+            // Verificar que no haya 2 rojas (<1.30x) seguidas en las últimas 5 rondas
+            const recentRounds = multipliers.slice(-5);
+            for (let i = 1; i < recentRounds.length; i++) {
+                if (recentRounds[i] < 1.30 && recentRounds[i - 1] < 1.30) {
+                    return false; // Hay 2 rojas seguidas
+                }
+            }
+            
+            return true;
+        }
+
+        // 2. Señal + Ronda Verde Previa (70%–77%)
+        // Condición: Ronda anterior >= 1.70x (o >= cashout objetivo)
+        checkRondaVerdeStrategy() {
+            const multipliers = this.originalMultipliers;
+            if (multipliers.length < 1) return false;
+            
+            const lastRound = multipliers[multipliers.length - 1];
+            const targetCashout = WIN_ODDS_APUESTA_1 || 1.70;
+            
+            return lastRound >= Math.max(1.70, targetCashout);
+        }
+
+        // 3. Bloque de 2 Señales (68%–74%)
+        // Condición: 2 señales consecutivas Y Min(rondas intermedias) >= 1.20x
+        checkBloque2SenalesStrategy() {
+            const state = this.newStrategyState;
+            const multipliers = this.originalMultipliers;
+            
+            // Si ya tenemos una señal pendiente, verificar si podemos generar la segunda
+            if (state.consecutiveSignals >= 1) {
+                // Verificar que no haya habido <1.20x desde la última señal
+                const roundsSinceLastSignal = multipliers.slice(state.lastSignalIndex + 1);
+                const hasLowRound = roundsSinceLastSignal.some(m => m < 1.20);
+                
+                if (hasLowRound) {
+                    // Resetear el contador si hubo una ronda baja
+                    state.consecutiveSignals = 0;
+                    state.lastSignalIndex = -1;
+                    return false;
+                }
+                
+                // Segunda señal confirmada
+                if (state.consecutiveSignals >= 1 && roundsSinceLastSignal.length >= 1) {
+                    state.consecutiveSignals = 0; // Reset para próximo ciclo
+                    state.lastSignalIndex = -1;
+                    return true;
+                }
+            }
+            
+            // Primera señal: verificar condiciones básicas
+            if (multipliers.length >= 2) {
+                const lastRound = multipliers[multipliers.length - 1];
+                if (lastRound >= 1.50) {
+                    state.consecutiveSignals = 1;
+                    state.lastSignalIndex = multipliers.length - 1;
+                }
+            }
+            
+            return false;
+        }
+
+        // 4. Ventana Limpia (67%–73%)
+        // Condición: Max 1 roja (<1.30x) en últimas 5 Y ningún >20x
+        checkVentanaLimpiaStrategy() {
+            const multipliers = this.originalMultipliers;
+            if (multipliers.length < 5) return false;
+            
+            const last5 = multipliers.slice(-5);
+            
+            // Contar rojas (<1.30x)
+            const redCount = last5.filter(m => m < 1.30).length;
+            if (redCount > 1) return false;
+            
+            // Verificar que no haya >20x
+            const hasSpike = last5.some(m => m > 20);
+            if (hasSpike) return false;
+            
+            return true;
+        }
+
+        // 5. Filtro Anti-Pico (66%–72%)
+        // Condición: Max(últimas 3) < 10x
+        checkFiltroAntiPicoStrategy() {
+            const multipliers = this.originalMultipliers;
+            if (multipliers.length < 3) return false;
+            
+            const last3 = multipliers.slice(-3);
+            const maxValue = Math.max(...last3);
+            
+            return maxValue < 10;
+        }
+
+        // 6. Señal Escalonada Conservadora (64%–70%)
+        // Condición: Ronda[-1] >= 1.40x Y Ronda[-2] >= 1.40x
+        checkSenalEscalonadaStrategy() {
+            const multipliers = this.originalMultipliers;
+            if (multipliers.length < 2) return false;
+            
+            const lastRound = multipliers[multipliers.length - 1];
+            const secondLastRound = multipliers[multipliers.length - 2];
+            
+            return lastRound >= 1.40 && secondLastRound >= 1.40;
+        }
+
+        // 7. Señal Única por Ciclo (62%–68%)
+        // Condición: 1 apuesta por ciclo, reset cuando <1.30x o >5x
+        checkSenalUnicaCicloStrategy() {
+            const state = this.newStrategyState;
+            const multipliers = this.originalMultipliers;
+            
+            if (multipliers.length < 1) return false;
+            
+            const lastRound = multipliers[multipliers.length - 1];
+            
+            // Verificar si el ciclo debe resetearse
+            if (lastRound < 1.30 || lastRound > 5) {
+                state.cycleActive = false; // Reset del ciclo
+            }
+            
+            // Si el ciclo ya está activo, no generar señal
+            if (state.cycleActive) return false;
+            
+            // Verificar condición de entrada básica (ronda verde)
+            if (lastRound >= 1.50) {
+                state.cycleActive = true; // Marcar ciclo como activo
+                return true;
+            }
+            
+            return false;
+        }
+
+        // 8. Entrada Tardía Controlada (60%–66%)
+        // Condición: Señal activa → esperar, si Ronda[+1] >= 1.30x → entrar
+        checkEntradaTardiaStrategy() {
+            const state = this.newStrategyState;
+            const multipliers = this.originalMultipliers;
+            
+            if (multipliers.length < 2) return false;
+            
+            const lastRound = multipliers[multipliers.length - 1];
+            const secondLastRound = multipliers[multipliers.length - 2];
+            
+            // Si estamos esperando confirmación
+            if (state.waitingForConfirmation) {
+                if (lastRound >= 1.30) {
+                    // Confirmación recibida, generar entrada
+                    state.waitingForConfirmation = false;
+                    state.pendingEntryRound = null;
+                    return true;
+                } else {
+                    // Cancelar, la ronda fue < 1.30x
+                    state.waitingForConfirmation = false;
+                    state.pendingEntryRound = null;
+                    return false;
+                }
+            }
+            
+            // Detectar potencial señal para esperar
+            if (secondLastRound >= 1.70 && !state.waitingForConfirmation) {
+                state.waitingForConfirmation = true;
+                state.pendingEntryRound = multipliers.length - 1;
+                // No generar señal aún, esperar siguiente ronda
+                return false;
+            }
+            
+            return false;
+        }
+
+        // Helper: Reset state for new strategies
+        resetNewStrategyState() {
+            this.newStrategyState = {
+                consecutiveSignals: 0,
+                lastSignalRounds: [],
+                cycleActive: false,
+                waitingForConfirmation: false,
+                pendingEntryRound: null,
+                lastSignalIndex: -1
+            };
+        }
+
+        // ========== FIN NUEVAS ESTRATEGIAS ==========
+
         checkAndGenerateEntradaSignal() {
             if (this.signalState.status !== 'none' || this.signalState.consecutiveEntradas >= 3 || this.signalState.awaitingNextManualInputBeforeEntrada) {
                 if (this.signalState.consecutiveEntradas >= 3) {
@@ -2157,10 +2366,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check strategy based on selection
             if (selectedStrategy === 'automatic') {
                 // Check all strategies - if any matches, generate signal
-                if (this.checkOriginalStrategy()) {
+                // Primero las estrategias por rondas (mayor efectividad)
+                if (this.checkConfirmacionDobleStrategy()) {
                     shouldGenerateSignal = true;
-                    strategyName = 'Original (EMA + Vela)';
-                } else if (this.checkMomentumHybridStrategy()) {
+                    strategyName = 'Confirmación Doble (72-80%)';
+                } else if (this.checkRondaVerdeStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Ronda Verde Previa (70-77%)';
+                } else if (this.checkBloque2SenalesStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Bloque 2 Señales (68-74%)';
+                } else if (this.checkVentanaLimpiaStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Ventana Limpia (67-73%)';
+                } else if (this.checkFiltroAntiPicoStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Filtro Anti-Pico (66-72%)';
+                } else if (this.checkSenalEscalonadaStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Señal Escalonada (64-70%)';
+                } else if (this.checkSenalUnicaCicloStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Señal Única Ciclo (62-68%)';
+                } else if (this.checkEntradaTardiaStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Entrada Tardía (60-66%)';
+                }
+                // Luego las estrategias técnicas originales
+                else if (this.checkMomentumHybridStrategy()) {
                     shouldGenerateSignal = true;
                     strategyName = 'Momentum Híbrido';
                 } else if (this.checkMeanReversionRSIStrategy()) {
@@ -2169,9 +2402,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (this.checkEngulfingPatternStrategy()) {
                     shouldGenerateSignal = true;
                     strategyName = 'Engulfing Pattern';
+                } else if (this.checkOriginalStrategy()) {
+                    shouldGenerateSignal = true;
+                    strategyName = 'Original (EMA + Vela)';
                 }
             } else {
                 switch (selectedStrategy) {
+                    // Estrategias técnicas originales
                     case 'momentum_hybrid':
                         shouldGenerateSignal = this.checkMomentumHybridStrategy();
                         strategyName = 'Momentum Híbrido';
@@ -2185,6 +2422,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         strategyName = 'Engulfing Pattern';
                         break;
                     case 'original':
+                        shouldGenerateSignal = this.checkOriginalStrategy();
+                        strategyName = 'Original (EMA + Vela)';
+                        break;
+                    // Nuevas estrategias por rondas
+                    case 'confirmacion_doble':
+                        shouldGenerateSignal = this.checkConfirmacionDobleStrategy();
+                        strategyName = 'Confirmación Doble (72-80%)';
+                        break;
+                    case 'ronda_verde_previa':
+                        shouldGenerateSignal = this.checkRondaVerdeStrategy();
+                        strategyName = 'Ronda Verde Previa (70-77%)';
+                        break;
+                    case 'bloque_2_senales':
+                        shouldGenerateSignal = this.checkBloque2SenalesStrategy();
+                        strategyName = 'Bloque 2 Señales (68-74%)';
+                        break;
+                    case 'ventana_limpia':
+                        shouldGenerateSignal = this.checkVentanaLimpiaStrategy();
+                        strategyName = 'Ventana Limpia (67-73%)';
+                        break;
+                    case 'filtro_anti_pico':
+                        shouldGenerateSignal = this.checkFiltroAntiPicoStrategy();
+                        strategyName = 'Filtro Anti-Pico (66-72%)';
+                        break;
+                    case 'senal_escalonada':
+                        shouldGenerateSignal = this.checkSenalEscalonadaStrategy();
+                        strategyName = 'Señal Escalonada (64-70%)';
+                        break;
+                    case 'senal_unica_ciclo':
+                        shouldGenerateSignal = this.checkSenalUnicaCicloStrategy();
+                        strategyName = 'Señal Única Ciclo (62-68%)';
+                        break;
+                    case 'entrada_tardia':
+                        shouldGenerateSignal = this.checkEntradaTardiaStrategy();
+                        strategyName = 'Entrada Tardía (60-66%)';
+                        break;
                     default:
                         shouldGenerateSignal = this.checkOriginalStrategy();
                         strategyName = 'Original (EMA + Vela)';
@@ -2532,6 +2805,10 @@ document.addEventListener('DOMContentLoaded', () => {
             this.activeApuesta2_amount = 0;
             this.signalHistory = [];
             this.currentSignalEntry = null;
+            
+            // Reset de multiplicadores originales y estado de nuevas estrategias
+            this.originalMultipliers = [];
+            this.resetNewStrategyState();
 
             this.clearSignalMessageOnNewInput(); // Use the one that clears immediately
             this.clearApuestaHighlights();
@@ -2618,6 +2895,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log(`Processing multiplier ${multiplier}x -> Category ${categorized.category}`);
 
             lastProcessedId = latestResult.id;
+
+            // Almacenar el multiplicador original para las estrategias por rondas
+            chartAppInstance.originalMultipliers.push(multiplier);
+            // Mantener solo los últimos 50 multiplicadores
+            if (chartAppInstance.originalMultipliers.length > 50) {
+                chartAppInstance.originalMultipliers.shift();
+            }
 
             chartAppInstance.handleButtonInput(
                 categorized.value,

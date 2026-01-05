@@ -2113,13 +2113,32 @@ button.zoom-button svg {
         font-size: 2.5em;
     }
 
+    .welcome-card {
+        padding: var(--spacing-xl);
+        width: 95%;
+        max-width: 100%;
+    }
+
     .card {
-        padding: 25px;
+        padding: var(--spacing-xl);
+        width: 95%;
+        max-width: 100%;
     }
 
     .card h3 {
-        font-size: 1.4em;
-        margin-bottom: 15px;
+        font-size: 1.5em;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .welcome-title {
+        font-size: 1.8em;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .welcome-notice {
+        font-size: 1em;
+        line-height: 1.6;
+        margin-bottom: var(--spacing-md);
     }
 
     .button-group {
@@ -2388,24 +2407,42 @@ button.zoom-button svg {
         font-size: 1.8em;
     }
 
+    .welcome-card {
+        padding: var(--spacing-lg);
+        width: 95%;
+        max-width: 100%;
+    }
+
     .card {
-        padding: var(--spacing-md);
+        padding: var(--spacing-lg);
+        width: 95%;
+        max-width: 100%;
     }
 
     .card h3 {
-        font-size: 0.9em;
-        margin-bottom: var(--spacing-sm);
+        font-size: 1.1em;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .welcome-notice {
+        font-size: 0.95em;
+        line-height: 1.6;
     }
 
     .button-group {
-        gap: var(--spacing-sm);
-        margin-top: var(--spacing-sm);
+        gap: var(--spacing-md);
+        margin-top: var(--spacing-md);
+    }
+
+    .welcome-buttons {
+        gap: var(--spacing-md);
     }
 
     .choice-button, .action-button {
-        padding: 4px 8px;
-        font-size: 0.75em;
-        border-radius: 4px;
+        padding: 12px 20px;
+        font-size: 0.9em;
+        border-radius: 8px;
+        min-height: 44px; /* Better touch target */
     }
 
     .currency-grid {
@@ -2414,8 +2451,9 @@ button.zoom-button svg {
     }
 
     .currency-button {
-        min-height: 70px;
-        padding: var(--spacing-xs);
+        min-height: 80px;
+        padding: var(--spacing-sm);
+        border-radius: 10px;
     }
 
     .game-selector-grid {
@@ -2425,17 +2463,19 @@ button.zoom-button svg {
     }
 
     .game-button {
-        min-height: 100px;
-        padding: var(--spacing-sm);
+        min-height: 110px;
+        padding: var(--spacing-md);
+        border-radius: 12px;
     }
 
     .game-icon {
-        font-size: 2em;
-        margin-bottom: var(--spacing-xs);
+        font-size: 2.5em;
+        margin-bottom: var(--spacing-sm);
     }
 
     .game-name {
-        font-size: 0.9em;
+        font-size: 1em;
+        font-weight: 600;
     }
 
     .currency-code {
@@ -2464,10 +2504,18 @@ button.zoom-button svg {
 
     #capital-input-screen input {
         width: calc(100% - var(--spacing-md));
-        padding: 4px 6px;
-        font-size: 0.75em;
-        margin-bottom: var(--spacing-sm);
-        border-radius: 4px;
+        padding: 12px;
+        font-size: 1em;
+        margin-bottom: var(--spacing-md);
+        border-radius: 8px;
+        min-height: 44px; /* Better touch target */
+    }
+
+    #take-profit-input, #stop-loss-input {
+        padding: 12px;
+        font-size: 1em;
+        min-height: 44px;
+        border-radius: 8px;
     }
 
     #start-bank-management {
@@ -2619,9 +2667,12 @@ button.zoom-button svg {
     }
 
     #signal-overlay-message {
-        font-size: 0.9em;
-        padding: 8px 12px;
-        border-radius: 6px;
+        font-size: 1.1em;
+        padding: 12px 20px;
+        border-radius: 10px;
+        white-space: normal;
+        max-width: 90%;
+        text-align: center;
     }
 
     #session-stats {
@@ -2672,6 +2723,111 @@ button.zoom-button svg {
     button.zoom-button svg {
         width: 18px;
         height: 18px;
+    }
+
+    /* Bottom sections - Statistics and History */
+    #bottom-sections-container {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+        margin-top: var(--spacing-md);
+    }
+
+    #statistics-section,
+    #signal-history-section {
+        padding: var(--spacing-md);
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-sm);
+    }
+
+    .stat-card {
+        padding: var(--spacing-sm);
+    }
+
+    .stat-label {
+        font-size: 0.75em;
+    }
+
+    .stat-value {
+        font-size: 1.1em;
+    }
+
+    .history-header {
+        font-size: 1em;
+        padding-bottom: var(--spacing-sm);
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .history-item {
+        padding: var(--spacing-sm);
+        font-size: 0.85em;
+    }
+
+    .history-item-header {
+        font-size: 0.9em;
+    }
+
+    .history-item-details {
+        font-size: 0.8em;
+        gap: var(--spacing-xs);
+    }
+
+    /* Spaceman bottom sections */
+    #spaceman-bottom-sections-container {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+
+    #spaceman-statistics-section,
+    #spaceman-signal-history-section {
+        padding: var(--spacing-md);
+    }
+
+    /* Modal improvements for mobile */
+    .modal-content {
+        width: 95%;
+        max-width: none;
+        margin: 10px;
+        padding: var(--spacing-md);
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header h2 {
+        font-size: 1.3em;
+        margin-bottom: var(--spacing-sm);
+    }
+
+    .modal-stats-grid {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .modal-stat-label {
+        font-size: 0.85em;
+    }
+
+    .modal-stat-value {
+        font-size: 1.1em;
+    }
+
+    .modal-body {
+        padding: var(--spacing-md);
+        font-size: 0.9em;
+    }
+
+    .modal-footer {
+        padding: var(--spacing-md);
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .modal-button {
+        width: 100%;
+        padding: 12px;
+        font-size: 1em;
     }
 }
 
@@ -4141,5 +4297,31 @@ button.zoom-button svg {
 @media (max-width: 768px) {
     #spaceman-bottom-sections-container {
         grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+
+    #spaceman-statistics-section,
+    #spaceman-signal-history-section {
+        padding: var(--spacing-md);
+    }
+
+    #spaceman-signal-history-section {
+        max-height: 400px;
+    }
+
+    #spaceman-signal-overlay-message {
+        font-size: 1.2em;
+        padding: var(--spacing-md) var(--spacing-lg);
+        border-radius: 12px;
+    }
+
+    .spaceman-prediction-overlay {
+        top: 10px;
+        right: 10px;
+        padding: 8px 12px;
+    }
+
+    .spaceman-prediction-text {
+        font-size: 0.85em;
     }
 }

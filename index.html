@@ -484,11 +484,23 @@
                     <div class="setting-item">
                         <label for="strategy-selector">Estrategia:</label>
                         <select id="strategy-selector">
-                            <option value="automatic">Automático (Cualquiera de las 4 estrategias)</option>
-                            <option value="original">Original (EMA + Vela) - 22-30%</option>
-                            <option value="momentum_hybrid">Momentum Híbrido - 75-80%</option>
-                            <option value="mean_reversion_rsi">Mean Reversion + RSI - 65-75%</option>
-                            <option value="engulfing">Engulfing Pattern - 65-70%</option>
+                            <option value="automatic">Automático (Todas las estrategias)</option>
+                            <optgroup label="Estrategias Técnicas">
+                                <option value="original">Original (EMA + Vela) - 22-30%</option>
+                                <option value="momentum_hybrid">Momentum Híbrido - 75-80%</option>
+                                <option value="mean_reversion_rsi">Mean Reversion + RSI - 65-75%</option>
+                                <option value="engulfing">Engulfing Pattern - 65-70%</option>
+                            </optgroup>
+                            <optgroup label="Estrategias por Rondas">
+                                <option value="confirmacion_doble">Confirmación Doble por Señal - 72-80%</option>
+                                <option value="ronda_verde_previa">Señal + Ronda Verde Previa - 70-77%</option>
+                                <option value="bloque_2_senales">Bloque de 2 Señales - 68-74%</option>
+                                <option value="ventana_limpia">Ventana Limpia - 67-73%</option>
+                                <option value="filtro_anti_pico">Filtro Anti-Pico - 66-72%</option>
+                                <option value="senal_escalonada">Señal Escalonada Conservadora - 64-70%</option>
+                                <option value="senal_unica_ciclo">Señal Única por Ciclo - 62-68%</option>
+                                <option value="entrada_tardia">Entrada Tardía Controlada - 60-66%</option>
+                            </optgroup>
                         </select>
                         <p style="font-size: 0.85em; color: var(--text-color-secondary); margin-top: 5px;">
                             Selecciona la estrategia para generar señales de entrada
