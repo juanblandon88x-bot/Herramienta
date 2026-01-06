@@ -10,7 +10,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/1win': {
-        target: 'http://100.84.144.118:8001',
+        target: 'https://test-zedd.onrender.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/1win/, '/1win'),
       },
