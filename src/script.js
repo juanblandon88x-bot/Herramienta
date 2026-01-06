@@ -2919,12 +2919,8 @@ document.addEventListener('DOMContentLoaded', () => {
             updateAPIStatus('loading', 'Conectando...');
             console.log('Fetching API data...');
             
-            // Use proxy in development to avoid CORS issues
-            const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                ? '/api/1win'
-                : 'http://100.84.144.118:8001/1win';
-            
-            const response = await fetch(apiUrl);
+            // Always use /api/1win - works with Vite proxy (dev) and Netlify function (prod)
+            const response = await fetch('/api/1win');
             
             if (!response.ok) {
                 console.error('API request failed:', response.status);
@@ -3038,12 +3034,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log('Loading initial API data...');
             
-            // Use proxy in development to avoid CORS issues
-            const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-                ? '/api/1win'
-                : 'http://100.84.144.118:8001/1win';
-            
-            const response = await fetch(apiUrl);
+            // Always use /api/1win - works with Vite proxy (dev) and Netlify function (prod)
+            const response = await fetch('/api/1win');
             
             if (!response.ok) {
                 console.error('Failed to load initial data');

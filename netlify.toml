@@ -2,6 +2,19 @@
   publish = "dist"
   command = "npm run build"
 
+[functions]
+  directory = "netlify/functions"
+
+# Environment variables - Set API_URL in Netlify Dashboard > Site settings > Environment variables
+# Example: API_URL = "https://your-public-api.com/1win"
+# Or use ngrok: API_URL = "https://abc123.ngrok.io/1win"
+
+# Proxy API requests to Netlify Function
+[[redirects]]
+  from = "/api/1win"
+  to = "/.netlify/functions/api-proxy"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
