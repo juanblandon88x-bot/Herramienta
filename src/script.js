@@ -25,8 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const buttonsPanel = document.getElementById('buttons-panel'); // Static reference for event listener
     const chartViewSelector = document.getElementById('chart-view-selector'); // Static reference for event listener
 
+    // Aviator mode selection screen
+    const aviatorModeScreen = document.getElementById('aviator-mode-screen');
+    
     // Currency and Bank Management State - these are truly global for the whole app session
     let selectedGame = null; // 'aviator' or 'spaceman'
+    let aviatorMode = null; // 'automatic' or 'manual'
     let selectedCurrency = {
         code: 'USD',
         symbol: '$'
@@ -1364,6 +1368,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 .attr("y", d => this.yScale(Math.max(d.open, d.close)))
                 .attr("fill", d => (d.close >= d.open ? "#00C853" : "#FF3D00"));
 
+            // --- Draw multiplier labels on candles ---
+            const candlesWithMultiplier = visibleCandles
+                .map((d, i) => ({ ...d, absoluteIndex: startIndex + i }))
+                .filter(d => d.originalMultiplier !== null && d.originalMultiplier !== undefined);
+
+            this.svg.selectAll("text.multiplier-label")
+                .data(candlesWithMultiplier)
+                .enter().append("text")
+                .attr("class", "multiplier-label")
+                .attr("x", d => this.xScale(d.absoluteIndex))
+                .attr("y", d => this.yScale(d.high) - 8)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "9px")
+                .attr("font-weight", "bold")
+                .attr("fill", d => d.originalMultiplier >= 2.0 ? "#00E676" : "#FF5252")
+                .text(d => d.originalMultiplier.toFixed(2) + "x");
+
             // --- Draw 10+ marker (Category 5) ---
             const plus10Markers = visibleCandles
                 .map((d, i) => ({ ...d, absoluteIndex: startIndex + i }))
@@ -2509,7 +2530,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        addDataPoint(valueFromButton, miniValue, buttonOriginalValue) {
+        addDataPoint(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier = null, hora = null) {
             const currentOpen = this.candles.length > 0 ? this.candles[this.candles.length - 1].close : 0;
             this.accumulatedValue += valueFromButton;
             const currentClose = this.accumulatedValue;
@@ -2523,7 +2544,16 @@ document.addEventListener('DOMContentLoaded', () => {
             candleHigh = Math.max(candleHigh, Math.max(currentOpen, currentClose) + wickMagnitude);
             candleLow = Math.min(candleLow, Math.min(currentOpen, currentClose) - wickMagnitude);
 
-            this.candles.push({ open: currentOpen, close: currentClose, high: candleHigh, low: candleLow, category: buttonOriginalValue });
+            // Store original multiplier and hora for display on chart
+            this.candles.push({ 
+                open: currentOpen, 
+                close: currentClose, 
+                high: candleHigh, 
+                low: candleLow, 
+                category: buttonOriginalValue,
+                originalMultiplier: originalMultiplier,
+                hora: hora
+            });
 
             // Store the body open/close values explicitly so zone always maps to the original candle body (open and close)
             if (buttonOriginalValue === "-5") {
@@ -2568,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        handleButtonInput(valueFromButton, miniValue, buttonOriginalValue) {
+        handleButtonInput(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier = null, hora = null) {
             // Clear previous signal messages and highlights, but NOT Fibonacci levels
             this.clearSignalMessageOnNewInput();
             this.clearApuestaHighlights();
@@ -2583,7 +2613,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     this.calculateApuestaAmounts();
                     this.updateBankAndApuestaDisplays();
                 }
-                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue);
+                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier, hora);
                 this.checkAndGenerateEntradaSignal();
                 return;
             }
@@ -2662,7 +2692,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 this.updateCounters();
                 if (this.bankManagementEnabled) this.updateBankAndApuestaDisplays();
-                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue);
+                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier, hora);
 
             } else if (this.signalState.status === 'awaiting_result') {
                 if (valueFromButton >= THRESHOLD_APUESTA_2_WIN_BUTTON_VALUE) {
@@ -2739,7 +2769,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 this.updateCounters();
                 if (this.bankManagementEnabled) this.updateBankAndApuestaDisplays();
-                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue);
+                this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier, hora);
             }
         }
 
@@ -2830,7 +2860,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let chartAppInstance = null; // Declare instance globally within DOMContentLoaded
     let apiPollingInterval = null; // For API polling
-    let lastProcessedId = null; // Track last processed game result
+    let lastProcessedHora = null; // Track last processed game result by hora
+    let apiResultsHistory = []; // Store API results for display
 
     // --- API Integration Functions ---
     function categorizeMultiplier(multiplier) {
@@ -2847,6 +2878,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return null;
     }
 
+    // Update API status indicator
+    function updateAPIStatus(status, message = '') {
+        const statusIndicator = document.getElementById('api-status');
+        if (statusIndicator) {
+            statusIndicator.className = 'api-status-indicator ' + status;
+            statusIndicator.title = message || status;
+        }
+    }
+
+    // Update API results panel display
+    function updateAPIResultsPanel() {
+        const resultsList = document.getElementById('api-results-list');
+        if (!resultsList) return;
+
+        const recentResults = apiResultsHistory.slice(-10).reverse();
+        
+        if (recentResults.length === 0) {
+            resultsList.innerHTML = '<div class="api-result-empty">Esperando datos...</div>';
+            return;
+        }
+
+        resultsList.innerHTML = recentResults.map(result => {
+            const isHigh = result.resultado >= 2.0;
+            const colorClass = isHigh ? 'result-high' : 'result-low';
+            return `<div class="api-result-item ${colorClass}">
+                <span class="api-result-time">${result.hora}</span>
+                <span class="api-result-value">${result.resultado.toFixed(2)}x</span>
+            </div>`;
+        }).join('');
+    }
+
     async function fetchAndProcessAPIData() {
         if (!chartAppInstance) {
             console.log("Chart not initialized yet, skipping API fetch");
@@ -2854,35 +2916,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('http://200.7.102.148:3350/1win');
+            updateAPIStatus('loading', 'Conectando...');
+            console.log('Fetching API data...');
+            
+            // Use proxy in development to avoid CORS issues
+            const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? '/api/1win'
+                : 'http://100.84.144.118:8001/1win';
+            
+            const response = await fetch(apiUrl);
+            
             if (!response.ok) {
                 console.error('API request failed:', response.status);
+                updateAPIStatus('error', `Error: ${response.status}`);
                 return;
             }
 
             const data = await response.json();
-            console.log('API Response:', data);
+            console.log('API Response received, items:', data.length);
+            updateAPIStatus('connected', 'Conectado');
 
             if (!data || !Array.isArray(data) || data.length === 0) {
                 console.log('No data available from API');
                 return;
             }
 
+            // Process new results (format: {"hora":"12:37:29","resultado":3.38})
             const latestResult = data[data.length - 1];
 
-            if (!latestResult || !latestResult.id || !latestResult.multiplier) {
+            if (!latestResult || !latestResult.hora || latestResult.resultado === undefined) {
                 console.log('Invalid result format:', latestResult);
                 return;
             }
 
-            if (lastProcessedId === latestResult.id) {
+            // Use hora as unique identifier
+            if (lastProcessedHora === latestResult.hora) {
                 console.log('Already processed this result');
                 return;
             }
 
-            const multiplier = parseFloat(latestResult.multiplier);
+            const multiplier = parseFloat(latestResult.resultado);
             if (isNaN(multiplier)) {
-                console.error('Invalid multiplier value:', latestResult.multiplier);
+                console.error('Invalid resultado value:', latestResult.resultado);
                 return;
             }
 
@@ -2892,9 +2967,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            console.log(`Processing multiplier ${multiplier}x -> Category ${categorized.category}`);
+            console.log(`Processing resultado ${multiplier}x @ ${latestResult.hora} -> Category ${categorized.category}`);
 
-            lastProcessedId = latestResult.id;
+            lastProcessedHora = latestResult.hora;
+
+            // Store result in history for display
+            apiResultsHistory.push({
+                hora: latestResult.hora,
+                resultado: multiplier
+            });
+            // Keep only last 50 results
+            if (apiResultsHistory.length > 50) {
+                apiResultsHistory.shift();
+            }
+
+            // Update results panel
+            updateAPIResultsPanel();
 
             // Almacenar el multiplicador original para las estrategias por rondas
             chartAppInstance.originalMultipliers.push(multiplier);
@@ -2903,29 +2991,90 @@ document.addEventListener('DOMContentLoaded', () => {
                 chartAppInstance.originalMultipliers.shift();
             }
 
+            // Store the original multiplier value for display on chart
             chartAppInstance.handleButtonInput(
                 categorized.value,
                 categorized.miniValue,
-                categorized.category
+                categorized.category,
+                multiplier, // Pass original multiplier for display
+                latestResult.hora // Pass hora for display
             );
 
         } catch (error) {
             console.error('Error fetching API data:', error);
+            console.error('Error details:', error.message);
+            // Check if it's a CORS error
+            if (error.message && error.message.includes('CORS')) {
+                updateAPIStatus('error', 'Error CORS - API no accesible');
+            } else if (error.message && error.message.includes('Failed to fetch')) {
+                updateAPIStatus('error', 'No se puede conectar a la API');
+            } else {
+                updateAPIStatus('error', 'Error de conexión');
+            }
         }
     }
 
-    function startAPIPolling(intervalMs = 5000) {
+    function startAPIPolling(intervalMs = 2000) {
         if (apiPollingInterval) {
             clearInterval(apiPollingInterval);
         }
 
         console.log(`Starting API polling every ${intervalMs}ms`);
+        
+        // Reset tracking variables for fresh start
+        lastProcessedHora = null;
+        apiResultsHistory = [];
 
+        // Initial fetch
         fetchAndProcessAPIData();
 
         apiPollingInterval = setInterval(() => {
             fetchAndProcessAPIData();
         }, intervalMs);
+    }
+    
+    // Load initial historical data from API
+    async function loadInitialAPIData() {
+        try {
+            console.log('Loading initial API data...');
+            
+            // Use proxy in development to avoid CORS issues
+            const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+                ? '/api/1win'
+                : 'http://100.84.144.118:8001/1win';
+            
+            const response = await fetch(apiUrl);
+            
+            if (!response.ok) {
+                console.error('Failed to load initial data');
+                return;
+            }
+            
+            const data = await response.json();
+            console.log('Initial data loaded:', data.length, 'items');
+            
+            if (data && Array.isArray(data) && data.length > 0) {
+                // Process the last 10 items as historical data
+                const historicalItems = data.slice(-10);
+                historicalItems.forEach(item => {
+                    if (item.hora && item.resultado !== undefined) {
+                        apiResultsHistory.push({
+                            hora: item.hora,
+                            resultado: parseFloat(item.resultado)
+                        });
+                    }
+                });
+                
+                // Set last processed hora to the latest
+                lastProcessedHora = data[data.length - 1].hora;
+                
+                // Update the display panel
+                updateAPIResultsPanel();
+                console.log('Historical data loaded, last hora:', lastProcessedHora);
+            }
+        } catch (error) {
+            console.error('Error loading initial API data:', error);
+        }
     }
 
     function stopAPIPolling() {
@@ -2939,6 +3088,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Screen Navigation Functions ---
     function hideAllScreens() {
         welcomeScreen.classList.add('hidden');
+        if (aviatorModeScreen) aviatorModeScreen.classList.add('hidden');
         currencySelectionScreen.classList.add('hidden');
         bankChoiceScreen.classList.add('hidden');
         capitalInputScreen.classList.add('hidden');
@@ -2948,6 +3098,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (spacemanApp) {
             spacemanApp.classList.add('hidden');
         }
+    }
+    
+    // Show aviator mode selection screen
+    function showAviatorModeScreen() {
+        hideAllScreens();
+        aviatorModeScreen.classList.remove('hidden');
     }
     
     function showTpSlInputScreen() {
@@ -2993,6 +3149,23 @@ document.addEventListener('DOMContentLoaded', () => {
         // Stop API polling
         stopAPIPolling();
 
+        // Reset game and mode selection
+        selectedGame = null;
+        aviatorMode = null;
+        
+        // Reset game buttons visual state
+        const gameButtons = document.querySelectorAll('.game-button');
+        gameButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Reset mode buttons visual state
+        const modeButtons = document.querySelectorAll('.mode-button');
+        modeButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Disable continue button
+        if (welcomeContinueButton) {
+            welcomeContinueButton.disabled = true;
+        }
+
         // Stop auto-advancing: wait for user click on "Continuar"
         // Clear any previous chart interval
         if (chartAppInstance && chartAppInstance.clockInterval) {
@@ -3000,8 +3173,9 @@ document.addEventListener('DOMContentLoaded', () => {
             chartAppInstance.clockInterval = null;
         }
 
-        // Reset last processed ID
-        lastProcessedId = null;
+        // Reset last processed hora
+        lastProcessedHora = null;
+        apiResultsHistory = [];
     }
 
     function showBankChoiceScreen() {
@@ -3069,8 +3243,32 @@ document.addEventListener('DOMContentLoaded', () => {
             lastActiveInputButton = null;
         }
 
-        // Start automatic API polling
-        startAPIPolling(5000);
+        // Handle Aviator mode (automatic or manual)
+        const manualInputButtons = document.getElementById('manual-input-buttons');
+        const apiResultsPanel = document.getElementById('api-results-panel');
+        
+        console.log('startApp called - aviatorMode:', aviatorMode, 'selectedGame:', selectedGame);
+        
+        if (aviatorMode === 'automatic') {
+            // Automatic mode: show API panel, hide manual buttons, start polling
+            if (manualInputButtons) manualInputButtons.style.display = 'none';
+            if (apiResultsPanel) apiResultsPanel.style.display = 'block';
+            console.log('Aviator mode: AUTOMATIC - Starting API polling');
+            // Load initial data first, then start polling
+            loadInitialAPIData().then(() => {
+                startAPIPolling(2000);
+            });
+        } else if (aviatorMode === 'manual') {
+            // Manual mode: show manual buttons, hide API panel, no polling
+            if (manualInputButtons) manualInputButtons.style.display = 'grid';
+            if (apiResultsPanel) apiResultsPanel.style.display = 'none';
+            stopAPIPolling();
+        } else {
+            // Default to automatic if no mode selected (shouldn't happen)
+            if (manualInputButtons) manualInputButtons.style.display = 'none';
+            if (apiResultsPanel) apiResultsPanel.style.display = 'block';
+            startAPIPolling(2000);
+        }
     }
 
     // --- Event Listeners for initial screens ---
@@ -3143,9 +3341,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add listener for the new continue button
     welcomeContinueButton.addEventListener('click', () => {
         if (selectedGame) {
-            // Both games go through currency selection
-            showCurrencySelectionScreen();
+            if (selectedGame === 'aviator') {
+                // Show mode selection for Aviator
+                showAviatorModeScreen();
+            } else {
+                // Spaceman goes directly to currency selection
+                showCurrencySelectionScreen();
+            }
         }
+    });
+    
+    // Aviator mode selection event listeners
+    const modeButtons = document.querySelectorAll('.mode-button');
+    modeButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all mode buttons
+            modeButtons.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            button.classList.add('active');
+            // Set selected mode
+            aviatorMode = button.dataset.mode;
+            console.log('Modo seleccionado:', aviatorMode);
+            // Continue to currency selection
+            showCurrencySelectionScreen();
+        });
     });
 
     // Manual modal event listeners
@@ -3375,7 +3594,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Handle cancel
                     document.getElementById('cancel-reset').onclick = () => {
                         summaryModal.classList.add('hidden');
-                        startAPIPolling(5000); // Resume polling
+                        startAPIPolling(2000); // Resume polling
                     };
                 } else {
                     // No history, reset directly
@@ -3565,7 +3784,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Session summary modal
     document.getElementById('close-summary')?.addEventListener('click', () => {
         document.getElementById('session-summary-modal')?.classList.add('hidden');
-        startAPIPolling(5000);
+        startAPIPolling(2000);
     });
     
     // Request notification permission

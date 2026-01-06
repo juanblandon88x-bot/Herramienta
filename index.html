@@ -164,6 +164,26 @@
         </div>
     </div>
 
+    <!-- Aviator Mode Selection Screen -->
+    <div id="aviator-mode-screen" class="app-screen hidden">
+        <div class="card">
+            <h3>✈️ Aviator - Selecciona el Modo</h3>
+            <p class="selection-subtitle" style="margin-bottom: var(--spacing-lg); text-align: center; color: var(--text-color-secondary);">¿Cómo deseas ingresar los datos?</p>
+            <div class="mode-selector-grid">
+                <button class="mode-button" data-mode="automatic">
+                    <span class="mode-icon">🤖</span>
+                    <span class="mode-name">Automático</span>
+                    <span class="mode-desc">Conecta con la API en tiempo real</span>
+                </button>
+                <button class="mode-button" data-mode="manual">
+                    <span class="mode-icon">✋</span>
+                    <span class="mode-name">Manual</span>
+                    <span class="mode-desc">Ingresa los datos manualmente</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Currency Selection Screen -->
     <div id="currency-selection-screen" class="app-screen hidden">
         <div class="card">
@@ -328,7 +348,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="input-buttons-grid">
+                    <!-- Botones manuales - se muestran en modo manual -->
+                    <div id="manual-input-buttons" class="input-buttons-grid" style="display: none;">
                         <button data-value="-5" data-mini-value="-1">1.00 / 1,09</button>
                         <button data-value="-4" data-mini-value="-1">1.10 / 1.29</button>
                         <button data-value="-3" data-mini-value="-1">1.30 / 1.49</button>
@@ -340,6 +361,14 @@
                         <button data-value="3" data-mini-value="1">6.00 / 7,99</button>
                         <button data-value="4" data-mini-value="1">8.00 / 9,99</button>
                         <button data-value="5" data-mini-value="1">10+</button>
+                    </div>
+                    <!-- Panel de últimos resultados API - se muestra en modo automático -->
+                    <div id="api-results-panel" class="api-results-panel" style="display: none;">
+                        <div class="api-results-header">
+                            <span class="api-status-indicator" id="api-status"></span>
+                            <span>Últimos Resultados API</span>
+                        </div>
+                        <div id="api-results-list" class="api-results-list"></div>
                     </div>
                     <div class="action-buttons-row">
                         <button id="undo">Retroceder</button>
