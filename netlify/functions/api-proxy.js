@@ -10,7 +10,7 @@ exports.handler = async (event, context) => {
   // 1. Use ngrok: run "ngrok http 8001" and use the URL like "https://abc123.ngrok.io/1win"
   // 2. Use a public server IP/domain
   // 3. Deploy your API to a cloud service
-  const API_URL = process.env.API_URL || 'http://100.84.144.118:8001/1win';
+  const API_URL = process.env.API_URL || 'https://test-zedd.onrender.com/1win';
   
   return new Promise((resolve, reject) => {
     const url = new URL(API_URL);

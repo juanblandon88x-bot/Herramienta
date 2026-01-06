@@ -6,7 +6,7 @@
   directory = "netlify/functions"
 
 # Environment variables - Set API_URL in Netlify Dashboard > Site settings > Environment variables
-# Example: API_URL = "https://your-public-api.com/1win"
+# Example: API_URL = "https://test-zedd.onrender.com/1win"
 # Or use ngrok: API_URL = "https://abc123.ngrok.io/1win"
 
 # Proxy API requests to Netlify Function
