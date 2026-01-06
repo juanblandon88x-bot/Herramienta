@@ -2382,6 +2382,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // GLOBAL TREND CHECK: Do not operate in downtrend if Aviator mode
+            // Accessing global selectedGame variable
+            if (typeof selectedGame !== 'undefined' && selectedGame === 'aviator' && this.getTrend() === 'bajista') {
+                 console.log("Tendencia Bajista en Aviator - No operar.");
+                 return;
+            }
+
             let shouldGenerateSignal = false;
             let strategyName = '';
 
@@ -3029,6 +3036,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Store the original multiplier value for display on chart
+            console.log(`Sending data to chart: ${multiplier}x (${categorized.category}) @ ${latestResult.hora}`);
             chartAppInstance.handleButtonInput(
                 categorized.value,
                 categorized.miniValue,
