@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('Script Version: 2.1 - Robust API Order');
     // References to new screen elements
     const welcomeScreen = document.getElementById('welcome-screen');
     const welcomeMessage = document.querySelector('.welcome-message');
@@ -2892,6 +2893,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsList = document.getElementById('api-results-list');
         if (!resultsList) return;
 
+        // Display newest at top. apiResultsHistory is Chronological [Oldest -> Newest].
+        // So we take last 10 and reverse them -> [Newest -> Oldest].
         const recentResults = apiResultsHistory.slice(-10).reverse();
         
         if (recentResults.length === 0) {
@@ -2907,6 +2910,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="api-result-value">${result.resultado.toFixed(2)}x</span>
             </div>`;
         }).join('');
+    }
+
+    // Helper to determine API data order and extract relevant items
+    function processApiData(data) {
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            return { latest: null, history: [] };
+        }
+
+        let isDescending = true; // Default: Newest first (Index 0)
+
+        // Try to detect order from timestamps
+        if (data.length > 1 && data[0].hora && data[data.length - 1].hora) {
+            const t0 = data[0].hora;
+            const tLast = data[data.length - 1].hora;
+            // If t0 < tLast (e.g. 10:00 < 11:00), it's likely Ascending (Oldest First)
+            // Exception: Midnight rollover (00:01 < 23:59 but 00:01 is newer).
+            // But assuming standard day operation.
+            if (t0 < tLast) {
+                isDescending = false;
+            }
+        }
+
+        if (isDescending) {
+            // Newest at index 0
+            return {
+                latest: data[0],
+                // History: Get newest 10, reverse to make them Chronological [Oldest -> Newest]
+                history: data.slice(0, 10).reverse()
+            };
+        } else {
+            // Oldest at index 0 (Newest at end)
+            return {
+                latest: data[data.length - 1],
+                // History: Get last 10 (Newest 10), they are already Chronological [Older -> Newest]
+                history: data.slice(-10)
+            };
+        }
     }
 
     async function fetchAndProcessAPIData() {
@@ -2937,8 +2977,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Process new results (format: {"hora":"12:37:29","resultado":3.38})
-            const latestResult = data[data.length - 1];
+            // Process new results using robust helper
+            const { latest } = processApiData(data);
+            const latestResult = latest;
 
             if (!latestResult || !latestResult.hora || latestResult.resultado === undefined) {
                 console.log('Invalid result format:', latestResult);
@@ -3046,19 +3087,28 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Initial data loaded:', data.length, 'items');
             
             if (data && Array.isArray(data) && data.length > 0) {
-                // Process the last 10 items as historical data
-                const historicalItems = data.slice(-10);
+                // Use robust helper to get history and latest
+                const { history, latest } = processApiData(data);
+                const historicalItems = history;
+                
                 historicalItems.forEach(item => {
                     if (item.hora && item.resultado !== undefined) {
                         apiResultsHistory.push({
                             hora: item.hora,
                             resultado: parseFloat(item.resultado)
                         });
+                        
+                        // Also populate originalMultipliers for strategy context
+                        if (chartAppInstance && chartAppInstance.originalMultipliers) {
+                            chartAppInstance.originalMultipliers.push(parseFloat(item.resultado));
+                        }
                     }
                 });
                 
                 // Set last processed hora to the latest
-                lastProcessedHora = data[data.length - 1].hora;
+                if (latest) {
+                    lastProcessedHora = latest.hora;
+                }
                 
                 // Update the display panel
                 updateAPIResultsPanel();
