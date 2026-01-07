@@ -1,3 +1,4 @@
+// Spaceman Trend Analysis Module
 export function calculateSupportResistance(results) {
     const values = results.map(r => parseFloat(r.value));
     if (values.length < 30) return { support: null, resistance: null };
@@ -388,87 +389,7 @@ function checkFiltroAntiPicoStrategy(multipliers, trend) {
     return maxValue < 10;
 }
 
-// 6. Señal Escalonada Conservadora (64%–70%)
-// Condición: Ronda[-1] >= 1.40x Y Ronda[-2] >= 1.40x
-function checkSenalEscalonadaStrategy(multipliers, trend) {
-    // NO operar en tendencia bajista
-    if (trend === 'bajista') return false;
-    
-    if (multipliers.length < 2) return false;
-    
-    const lastRound = multipliers[multipliers.length - 1];
-    const secondLastRound = multipliers[multipliers.length - 2];
-    
-    return lastRound >= 1.40 && secondLastRound >= 1.40;
-}
 
-// 7. Señal Única por Ciclo (62%–68%)
-// Condición: 1 apuesta por ciclo, reset cuando <1.30x o >5x
-function checkSenalUnicaCicloStrategy(multipliers, trend) {
-    // NO operar en tendencia bajista
-    if (trend === 'bajista') return false;
-    
-    const state = spacemanStrategyState;
-    
-    if (multipliers.length < 1) return false;
-    
-    const lastRound = multipliers[multipliers.length - 1];
-    
-    // Verificar si el ciclo debe resetearse
-    if (lastRound < 1.30 || lastRound > 5) {
-        state.cycleActive = false; // Reset del ciclo
-    }
-    
-    // Si el ciclo ya está activo, no generar señal
-    if (state.cycleActive) return false;
-    
-    // Verificar condición de entrada básica (ronda verde)
-    if (lastRound >= 1.50) {
-        state.cycleActive = true; // Marcar ciclo como activo
-        return true;
-    }
-    
-    return false;
-}
-
-// 8. Entrada Tardía Controlada (60%–66%)
-// Condición: Señal activa → esperar, si Ronda[+1] >= 1.30x → entrar
-function checkEntradaTardiaStrategy(multipliers, trend) {
-    // NO operar en tendencia bajista
-    if (trend === 'bajista') return false;
-    
-    const state = spacemanStrategyState;
-    
-    if (multipliers.length < 2) return false;
-    
-    const lastRound = multipliers[multipliers.length - 1];
-    const secondLastRound = multipliers[multipliers.length - 2];
-    
-    // Si estamos esperando confirmación
-    if (state.waitingForConfirmation) {
-        if (lastRound >= 1.30) {
-            // Confirmación recibida, generar entrada
-            state.waitingForConfirmation = false;
-            state.pendingEntryRound = null;
-            return true;
-        } else {
-            // Cancelar, la ronda fue < 1.30x
-            state.waitingForConfirmation = false;
-            state.pendingEntryRound = null;
-            return false;
-        }
-    }
-    
-    // Detectar potencial señal para esperar
-    if (secondLastRound >= 1.70 && !state.waitingForConfirmation) {
-        state.waitingForConfirmation = true;
-        state.pendingEntryRound = multipliers.length - 1;
-        // No generar señal aún, esperar siguiente ronda
-        return false;
-    }
-    
-    return false;
-}
 
 // ========== FIN NUEVAS ESTRATEGIAS POR RONDAS ==========
 
@@ -633,16 +554,8 @@ export function analyzeTrend(results, trendChart, config, ema3, ema5) {
     } else if (multipliers.length >= 3 && checkFiltroAntiPicoStrategy(multipliers, trend)) {
         shouldGenerateSignal = true;
         strategyName = 'Filtro Anti-Pico (66-72%)';
-    } else if (multipliers.length >= 2 && checkSenalEscalonadaStrategy(multipliers, trend)) {
-        shouldGenerateSignal = true;
-        strategyName = 'Señal Escalonada (64-70%)';
-    } else if (multipliers.length >= 1 && checkSenalUnicaCicloStrategy(multipliers, trend)) {
-        shouldGenerateSignal = true;
-        strategyName = 'Señal Única Ciclo (62-68%)';
-    } else if (multipliers.length >= 2 && checkEntradaTardiaStrategy(multipliers, trend)) {
-        shouldGenerateSignal = true;
-        strategyName = 'Entrada Tardía (60-66%)';
     }
+
     // Luego las estrategias técnicas originales
     else if (checkMomentumHybridStrategy(candles, trend, emaFastArray, emaSlowArray)) {
         shouldGenerateSignal = true;

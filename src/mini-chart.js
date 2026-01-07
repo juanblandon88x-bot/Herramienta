@@ -70,7 +70,13 @@ class MiniChartManager {
         const y1_100_screen = this.miniYScale(chart_y1_100_value);
         const y2_0_screen = this.miniYScale(chart_y2_0_value);
 
-        const fibLineData = this.miniFibLevels.map(d => {
+        // Use global levels if available, otherwise fallback to default
+        let levelsToUse = this.miniFibLevels;
+        if (window.customFibLevels && Array.isArray(window.customFibLevels)) {
+            levelsToUse = window.customFibLevels.map(lvl => ({ level: lvl, label: (lvl * 100).toFixed(1) + '%' }));
+        }
+
+        const fibLineData = levelsToUse.map(d => {
             const levelY_screen = y2_0_screen + (y1_100_screen - y2_0_screen) * d.level;
             return {
                 ...d,

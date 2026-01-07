@@ -1,5 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Script Version: 2.1 - Robust API Order');
+function initApp() {
+    console.log('Script Version: 2.1 - Robust API Order - Init');
     // References to new screen elements
     const welcomeScreen = document.getElementById('welcome-screen');
     const welcomeMessage = document.querySelector('.welcome-message');
@@ -180,7 +180,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Customizable Odds (can be changed in settings)
     let WIN_ODDS_APUESTA_1 = 1.80;
     let WIN_ODDS_APUESTA_2 = 2.30;
-    let selectedStrategy = 'original'; // 'original', 'momentum_hybrid', 'mean_reversion_rsi', 'engulfing'
+    let selectedStrategies = ['original']; // Changed to array for multi-select
+    
+    // Analysis Tools Settings
+    let bollingerPeriod = 20;
+    let bollingerStdDev = 2;
+    let customFibLevels = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+    let targetMultiplier = 2.00; // Default Safe Mode
+
+    // Expose settings to window for other modules (like mini-chart.js)
+    window.customFibLevels = customFibLevels;
+    window.bollingerPeriod = bollingerPeriod;
+    window.bollingerStdDev = bollingerStdDev;
+    window.selectedStrategies = selectedStrategies;
+    window.targetMultiplier = targetMultiplier;
     
     // Settings
     let soundEnabled = true;
@@ -249,7 +262,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 WIN_ODDS_APUESTA_2 = settings.odds2 || 2.30;
                 soundEnabled = settings.soundEnabled !== false;
                 notificationsEnabled = settings.notificationsEnabled !== false;
-                selectedStrategy = settings.strategy || 'original';
+                
+                // Handle strategy migration
+                if (settings.strategies) {
+                    selectedStrategies = settings.strategies;
+                } else if (settings.strategy) {
+                    selectedStrategies = [settings.strategy];
+                }
+
+                if (settings.bollingerPeriod) bollingerPeriod = settings.bollingerPeriod;
+                if (settings.bollingerStdDev) bollingerStdDev = settings.bollingerStdDev;
+                if (settings.fibLevels) customFibLevels = settings.fibLevels;
             }
         } catch (e) {
             console.warn('Failed to load settings:', e);
@@ -264,7 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 odds2: WIN_ODDS_APUESTA_2,
                 soundEnabled: soundEnabled,
                 notificationsEnabled: notificationsEnabled,
-                strategy: selectedStrategy
+                strategies: selectedStrategies,
+                bollingerPeriod: bollingerPeriod,
+                bollingerStdDev: bollingerStdDev,
+                fibLevels: customFibLevels
             };
             localStorage.setItem('tradingAppSettings', JSON.stringify(settings));
         } catch (e) {
@@ -339,15 +365,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionStatsHeaderDiv = document.getElementById('session-stats-header'); // Desktop
 
     // Fibonacci Levels (Shared for both main and mini chart logic, if needed, or define separately)
-    const fibLevels = [
-        { level: 0.0, label: '0.0%' },
-        { level: 0.236, label: '23.6%' },
-        { level: 0.382, label: '38.2%' },
-        { level: 0.5, label: '50.0%' },
-        { level: 0.618, label: '61.8%' },
-        { level: 0.786, label: '78.6%' },
-        { level: 1.0, label: '100.0%' }
-    ];
+    // const fibLevels = removed in favor of dynamic customFibLevels
+
 
     // Variable to keep track of the last clicked input button for active state
     let lastActiveInputButton = null;
@@ -427,6 +446,15 @@ document.addEventListener('DOMContentLoaded', () => {
             this.fibonacciGroup = this.svg.select('.fibonacci-group');
             this.xGridGroup = this.svg.select('.x-grid');
             this.yGridGroup = this.svg.select('.y-grid');
+            
+            // Bollinger Bands Group
+            if (this.svg.select('.bollinger-group').empty()) {
+                this.bollingerGroup = this.svg.insert("g", ".fibonacci-group").attr("class", "bollinger-group");
+            } else {
+                this.bollingerGroup = this.svg.select('.bollinger-group');
+            }
+            this.bollingerBandsEnabled = false;
+
             this.xScale = d3.scaleLinear();
             this.yScale = d3.scaleLinear();
 
@@ -557,8 +585,15 @@ document.addEventListener('DOMContentLoaded', () => {
             this.apuesta1_amount = currentBank * betPercentage;
             this.apuesta1_amount = Math.max(0, Math.min(this.apuesta1_amount, currentBank));
 
-            // Intento 2 must be double of Intento 1
-            this.apuesta2_amount = this.apuesta1_amount * 2;
+            // Intento 2 calculation based on targetMultiplier
+            let attempt2Multiplier = 2; // Default
+            if (targetMultiplier <= 1.50) {
+                attempt2Multiplier = 3;
+            } else if (targetMultiplier <= 1.70) {
+                attempt2Multiplier = 2.5;
+            }
+
+            this.apuesta2_amount = this.apuesta1_amount * attempt2Multiplier;
             // Ensure it doesn't exceed available bank
             this.apuesta2_amount = Math.max(0, Math.min(this.apuesta2_amount, currentBank - this.apuesta1_amount));
 
@@ -629,7 +664,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 let displayApuesta1 = this.apuesta1_amount;
                 let displayApuesta2 = this.apuesta2_amount;
                 let displayPercentage1 = (this.currentInitialBetPercentage * 100).toFixed(2);
-                let displayPercentage2 = (this.currentInitialBetPercentage * 100 * 2).toFixed(2); // Double of Intento 1
+                
+                let attempt2Mult = 2;
+                if (targetMultiplier <= 1.50) attempt2Mult = 3;
+                else if (targetMultiplier <= 1.70) attempt2Mult = 2.5;
+                
+                let displayPercentage2 = (this.currentInitialBetPercentage * 100 * attempt2Mult).toFixed(2);
 
                 if (this.currentBetAttempt === 1) {
                     displayApuesta1 = this.activeApuesta1_amount;
@@ -668,7 +708,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const y1_100_screen = this.yScale(chart_y1_100_value);
             const y2_0_screen = this.yScale(chart_y2_0_value);
 
-            const fibLineData = fibLevels.map(d => {
+            const currentFibLevels = customFibLevels.map(lvl => ({ level: lvl, label: (lvl * 100).toFixed(1) + '%' }));
+
+            const fibLineData = currentFibLevels.map(d => {
                 const levelY_screen = y2_0_screen + (y1_100_screen - y2_0_screen) * d.level;
                 return { ...d, y: levelY_screen, isAnchor: d.level === 0.0 || d.level === 1.0 };
             });
@@ -688,6 +730,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     .attr("height", bandHeight);
             }
 
+            const dragBehavior = d3.drag()
+                .on("start", function(event, d) {
+                    d3.select(this).attr("stroke", "cyan").attr("stroke-width", 2);
+                    if (this.tagName === 'circle') {
+                         d3.select(this).attr("fill", "cyan").attr("r", 12);
+                    }
+                })
+                .on("drag", (event, d) => {
+                    const newY_screen = Math.max(this.margin.top, Math.min(this.height - this.margin.bottom, event.y));
+                    const newY_value = this.yScale.invert(newY_screen);
+
+                    if (d.level === 1.0) {
+                        this.fibonacciAnchorY.y1_100_value = newY_value;
+                    } else if (d.level === 0.0) {
+                        this.fibonacciAnchorY.y2_0_value = newY_value;
+                    }
+
+                    const currentY100_value = this.fibonacciAnchorY.y1_100_value;
+                    const currentY0_value = this.fibonacciAnchorY.y2_0_value;
+
+                    const updatedLineData = currentFibLevels.map(f => {
+                        const levelY_screen = this.yScale(currentY0_value) + (this.yScale(currentY100_value) - this.yScale(currentY0_value)) * f.level;
+                        return { ...f, y: levelY_screen, isAnchor: f.level === 0.0 || f.level === 1.0 };
+                    });
+
+                    // Update Lines
+                    this.fibonacciGroup.selectAll(".fibonacci-anchor-line")
+                        .data(updatedLineData.filter(d => d.isAnchor))
+                        .attr("y1", f => f.y)
+                        .attr("y2", f => f.y);
+
+                    // Update Handles
+                    this.fibonacciGroup.selectAll(".fibonacci-handle")
+                        .data(updatedLineData.filter(d => d.isAnchor))
+                        .attr("cy", f => f.y);
+
+                    const updatedLevel50 = updatedLineData.find(d => d.level === 0.5);
+                    const updatedLevel618 = updatedLineData.find(d => d.level === 0.618);
+
+                    if (updatedLevel50 && updatedLevel618) {
+                        const updatedBandTopY = Math.min(updatedLevel50.y, updatedLevel618.y);
+                        const updatedBandHeight = Math.abs(updatedLevel50.y - updatedLevel618.y);
+                        this.fibonacciGroup.select(".golden-zone-band")
+                            .attr("y", updatedBandTopY)
+                            .attr("height", updatedBandHeight);
+                    }
+                })
+                .on("end", function(event, d) {
+                    if (this.tagName === 'line') {
+                        d3.select(this).attr("stroke", "rgba(255, 215, 0, 0.3)").attr("stroke-width", 1);
+                    } else if (this.tagName === 'circle') {
+                         d3.select(this).attr("fill", "#ffd700").attr("r", 8).attr("stroke", "#fff").attr("stroke-width", 2);
+                    }
+                });
+
             this.fibonacciGroup.selectAll(".fibonacci-anchor-line")
                 .data(fibLineData.filter(d => d.isAnchor))
                 .enter().append("line")
@@ -696,47 +793,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 .attr("x2", this.margin.left + this.innerWidth)
                 .attr("y1", d => d.y)
                 .attr("y2", d => d.y)
-                .call(d3.drag()
-                    .on("start", (event, d) => {
-                        d3.select(event.subject).attr("stroke", "cyan").attr("stroke-width", 2);
-                    })
-                    .on("drag", (event, d) => {
-                        const newY_screen = Math.max(this.margin.top, Math.min(this.height - this.margin.bottom, event.y));
-                        const newY_value = this.yScale.invert(newY_screen);
+                .attr("stroke", "rgba(255, 215, 0, 0.3)")
+                .attr("stroke-width", 1)
+                .attr("cursor", "ns-resize")
+                .call(dragBehavior);
 
-                        if (d.level === 1.0) {
-                            this.fibonacciAnchorY.y1_100_value = newY_value;
-                        } else if (d.level === 0.0) {
-                            this.fibonacciAnchorY.y2_0_value = newY_value;
-                        }
-
-                        const currentY100_value = this.fibonacciAnchorY.y1_100_value;
-                        const currentY0_value = this.fibonacciAnchorY.y2_0_value;
-
-                        const updatedLineData = fibLevels.map(f => {
-                            const levelY_screen = this.yScale(currentY0_value) + (this.yScale(currentY100_value) - this.yScale(currentY0_value)) * f.level;
-                            return { ...f, y: levelY_screen, isAnchor: f.level === 0.0 || f.level === 1.0 };
-                        });
-
-                        this.fibonacciGroup.selectAll(".fibonacci-anchor-line")
-                            .data(updatedLineData.filter(d => d.isAnchor))
-                            .attr("y1", f => f.y)
-                            .attr("y2", f => f.y);
-
-                        const updatedLevel50 = updatedLineData.find(d => d.level === 0.5);
-                        const updatedLevel618 = updatedLineData.find(d => d.level === 0.618);
-
-                        if (updatedLevel50 && updatedLevel618) {
-                            const updatedBandTopY = Math.min(updatedLevel50.y, updatedLevel618.y);
-                            const updatedBandHeight = Math.abs(updatedLevel50.y - updatedLevel618.y);
-                            this.fibonacciGroup.select(".golden-zone-band")
-                                .attr("y", updatedBandTopY)
-                                .attr("height", updatedBandHeight);
-                        }
-                    })
-                    .on("end", (event, d) => {
-                        d3.select(event.subject).attr("stroke", "rgba(255, 215, 0, 0.3)").attr("stroke-width", 1);
-                    }));
+            // Add Handles (Circles) for easier mobile interaction
+            this.fibonacciGroup.selectAll(".fibonacci-handle")
+                .data(fibLineData.filter(d => d.isAnchor))
+                .enter().append("circle")
+                .attr("class", "fibonacci-handle")
+                .attr("cx", this.margin.left + this.innerWidth / 2) // Center horizontally
+                .attr("cy", d => d.y)
+                .attr("r", 8)
+                .attr("fill", "#ffd700")
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 2)
+                .attr("cursor", "ns-resize")
+                .call(dragBehavior);
         }
 
         handleFibonacciClick(event) {
@@ -804,6 +878,46 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const padding = new Array(period - 1).fill(null);
             return padding.concat(ema);
+        }
+
+        calculateSD(dataArr, period) {
+            const sd = [];
+            if (dataArr.length < period) return new Array(dataArr.length).fill(null);
+            
+            for (let i = 0; i < dataArr.length; i++) {
+                if (i < period - 1) {
+                    sd.push(null);
+                    continue;
+                }
+                const slice = dataArr.slice(i - period + 1, i + 1);
+                const mean = slice.reduce((a, b) => a + b, 0) / period;
+                const squareDiffs = slice.map(value => Math.pow(value - mean, 2));
+                const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / period;
+                sd.push(Math.sqrt(avgSquareDiff));
+            }
+            return sd;
+        }
+
+        calculateBollingerBands(dataArr, period = 20, multiplier = 2) {
+             const sma = [];
+             if (dataArr.length < period) return { upper: [], middle: [], lower: [] };
+             
+             for (let i = 0; i < dataArr.length; i++) {
+                 if (i < period - 1) {
+                     sma.push(null);
+                     continue;
+                 }
+                 const slice = dataArr.slice(i - period + 1, i + 1);
+                 const mean = slice.reduce((a, b) => a + b, 0) / period;
+                 sma.push(mean);
+             }
+             
+             const sd = this.calculateSD(dataArr, period);
+             
+             const upper = sma.map((val, i) => val === null ? null : val + multiplier * sd[i]);
+             const lower = sma.map((val, i) => val === null ? null : val - multiplier * sd[i]);
+             
+             return { upper, middle: sma, lower };
         }
 
         findSwingPoints(dataArr, lookback = 10) {
@@ -1149,12 +1263,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateChart() {
-            this.svg.selectAll("*:not(.fibonacci-group):not(.x-grid):not(.y-grid)").remove();
+            this.svg.selectAll("*:not(.fibonacci-group):not(.x-grid):not(.y-grid):not(.bollinger-group)").remove();
 
             // Remove previous zone elements (if any) before redraw
             this.svg.selectAll(".main-zone-line").remove();
 
             const { data: visibleData, candles: visibleCandles, startIndex } = this.getVisibleData();
+
+            // --- Draw Bollinger Bands ---
+            this.bollingerGroup.selectAll("*").remove();
+            if (this.bollingerBandsEnabled && this.data.length >= bollingerPeriod) {
+                 const { upper, middle, lower } = this.calculateBollingerBands(this.data, bollingerPeriod, bollingerStdDev);
+                 
+                 // Slicing to visible data range
+                 // Note: we might need a bit more context for lines to connect smoothly at edges, 
+                 // but slicing at startIndex is consistent with other chart elements.
+                 const visibleUpper = upper.slice(startIndex);
+                 const visibleMiddle = middle.slice(startIndex);
+                 const visibleLower = lower.slice(startIndex);
+                 
+                 const areaGenerator = d3.area()
+                    .defined(d => d.u !== null && d.l !== null)
+                    .x((d, i) => this.xScale(startIndex + i))
+                    .y0(d => this.yScale(d.l))
+                    .y1(d => this.yScale(d.u))
+                    .curve(d3.curveMonotoneX);
+                 
+                 const combinedData = visibleUpper.map((u, i) => ({ u, l: visibleLower[i] }));
+                 
+                 this.bollingerGroup.append("path")
+                    .datum(combinedData)
+                    .attr("fill", "rgba(255, 255, 255, 0.05)")
+                    .attr("stroke", "none")
+                    .attr("d", areaGenerator);
+                    
+                 const lineGenerator = d3.line()
+                    .defined(d => d !== null)
+                    .x((d, i) => this.xScale(startIndex + i))
+                    .y(d => this.yScale(d))
+                    .curve(d3.curveMonotoneX);
+                 
+                 this.bollingerGroup.append("path")
+                    .datum(visibleUpper)
+                    .attr("fill", "none")
+                    .attr("stroke", "rgba(0, 255, 255, 0.5)")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "3,3")
+                    .attr("d", lineGenerator);
+                    
+                 this.bollingerGroup.append("path")
+                    .datum(visibleLower)
+                    .attr("fill", "none")
+                    .attr("stroke", "rgba(0, 255, 255, 0.5)")
+                    .attr("stroke-width", 1)
+                    .attr("stroke-dasharray", "3,3")
+                    .attr("d", lineGenerator);
+                    
+                 this.bollingerGroup.append("path")
+                    .datum(visibleMiddle)
+                    .attr("fill", "none")
+                    .attr("stroke", "rgba(255, 165, 0, 0.3)") // Orangeish for SMA
+                    .attr("stroke-width", 1)
+                    .attr("d", lineGenerator);
+            }
 
             let predictionCandle = null;
             if (visibleCandles.length > 0 && this.data.length >= 10) {
@@ -2281,81 +2452,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return maxValue < 10;
         }
 
-        // 6. Señal Escalonada Conservadora (64%–70%)
-        // Condición: Ronda[-1] >= 1.40x Y Ronda[-2] >= 1.40x
-        checkSenalEscalonadaStrategy() {
-            const multipliers = this.originalMultipliers;
-            if (multipliers.length < 2) return false;
-            
-            const lastRound = multipliers[multipliers.length - 1];
-            const secondLastRound = multipliers[multipliers.length - 2];
-            
-            return lastRound >= 1.40 && secondLastRound >= 1.40;
-        }
 
-        // 7. Señal Única por Ciclo (62%–68%)
-        // Condición: 1 apuesta por ciclo, reset cuando <1.30x o >5x
-        checkSenalUnicaCicloStrategy() {
-            const state = this.newStrategyState;
-            const multipliers = this.originalMultipliers;
-            
-            if (multipliers.length < 1) return false;
-            
-            const lastRound = multipliers[multipliers.length - 1];
-            
-            // Verificar si el ciclo debe resetearse
-            if (lastRound < 1.30 || lastRound > 5) {
-                state.cycleActive = false; // Reset del ciclo
-            }
-            
-            // Si el ciclo ya está activo, no generar señal
-            if (state.cycleActive) return false;
-            
-            // Verificar condición de entrada básica (ronda verde)
-            if (lastRound >= 1.50) {
-                state.cycleActive = true; // Marcar ciclo como activo
-                return true;
-            }
-            
-            return false;
-        }
-
-        // 8. Entrada Tardía Controlada (60%–66%)
-        // Condición: Señal activa → esperar, si Ronda[+1] >= 1.30x → entrar
-        checkEntradaTardiaStrategy() {
-            const state = this.newStrategyState;
-            const multipliers = this.originalMultipliers;
-            
-            if (multipliers.length < 2) return false;
-            
-            const lastRound = multipliers[multipliers.length - 1];
-            const secondLastRound = multipliers[multipliers.length - 2];
-            
-            // Si estamos esperando confirmación
-            if (state.waitingForConfirmation) {
-                if (lastRound >= 1.30) {
-                    // Confirmación recibida, generar entrada
-                    state.waitingForConfirmation = false;
-                    state.pendingEntryRound = null;
-                    return true;
-                } else {
-                    // Cancelar, la ronda fue < 1.30x
-                    state.waitingForConfirmation = false;
-                    state.pendingEntryRound = null;
-                    return false;
-                }
-            }
-            
-            // Detectar potencial señal para esperar
-            if (secondLastRound >= 1.70 && !state.waitingForConfirmation) {
-                state.waitingForConfirmation = true;
-                state.pendingEntryRound = multipliers.length - 1;
-                // No generar señal aún, esperar siguiente ronda
-                return false;
-            }
-            
-            return false;
-        }
 
         // Helper: Reset state for new strategies
         resetNewStrategyState() {
@@ -2391,106 +2488,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let shouldGenerateSignal = false;
             let strategyName = '';
+            
+            // Strategies definition map for easy lookup
+            // Key must match value in checkbox
+            const strategyMap = {
+                'confirmacion_doble': { method: this.checkConfirmacionDobleStrategy, name: 'Confirmación Doble (72-80%)' },
+                'ronda_verde_previa': { method: this.checkRondaVerdeStrategy, name: 'Ronda Verde Previa (70-77%)' },
+                'bloque_2_senales': { method: this.checkBloque2SenalesStrategy, name: 'Bloque 2 Señales (68-74%)' },
+                'ventana_limpia': { method: this.checkVentanaLimpiaStrategy, name: 'Ventana Limpia (67-73%)' },
+                'filtro_anti_pico': { method: this.checkFiltroAntiPicoStrategy, name: 'Filtro Anti-Pico (66-72%)' },
+                'momentum_hybrid': { method: this.checkMomentumHybridStrategy, name: 'Momentum Híbrido' },
+                'mean_reversion_rsi': { method: this.checkMeanReversionRSIStrategy, name: 'Mean Reversion + RSI' },
+                'engulfing': { method: this.checkEngulfingPatternStrategy, name: 'Engulfing Pattern' },
+                'original': { method: this.checkOriginalStrategy, name: 'Original (EMA + Vela)' }
+            };
 
-            // Check strategy based on selection
-            if (selectedStrategy === 'automatic') {
-                // Check all strategies - if any matches, generate signal
-                // Primero las estrategias por rondas (mayor efectividad)
-                if (this.checkConfirmacionDobleStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Confirmación Doble (72-80%)';
-                } else if (this.checkRondaVerdeStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Ronda Verde Previa (70-77%)';
-                } else if (this.checkBloque2SenalesStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Bloque 2 Señales (68-74%)';
-                } else if (this.checkVentanaLimpiaStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Ventana Limpia (67-73%)';
-                } else if (this.checkFiltroAntiPicoStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Filtro Anti-Pico (66-72%)';
-                } else if (this.checkSenalEscalonadaStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Señal Escalonada (64-70%)';
-                } else if (this.checkSenalUnicaCicloStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Señal Única Ciclo (62-68%)';
-                } else if (this.checkEntradaTardiaStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Entrada Tardía (60-66%)';
-                }
-                // Luego las estrategias técnicas originales
-                else if (this.checkMomentumHybridStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Momentum Híbrido';
-                } else if (this.checkMeanReversionRSIStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Mean Reversion + RSI';
-                } else if (this.checkEngulfingPatternStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Engulfing Pattern';
-                } else if (this.checkOriginalStrategy()) {
-                    shouldGenerateSignal = true;
-                    strategyName = 'Original (EMA + Vela)';
-                }
+            // Determine which strategies to check
+            let strategiesToCheck = [];
+            
+            if (selectedStrategies.includes('automatic')) {
+                // Check all known strategies in priority order
+                strategiesToCheck = [
+                    'confirmacion_doble', 'ronda_verde_previa', 'bloque_2_senales', 
+                    'ventana_limpia', 'filtro_anti_pico',
+                    'momentum_hybrid', 'mean_reversion_rsi', 'engulfing', 'original'
+                ];
             } else {
-                switch (selectedStrategy) {
-                    // Estrategias técnicas originales
-                    case 'momentum_hybrid':
-                        shouldGenerateSignal = this.checkMomentumHybridStrategy();
-                        strategyName = 'Momentum Híbrido';
-                        break;
-                    case 'mean_reversion_rsi':
-                        shouldGenerateSignal = this.checkMeanReversionRSIStrategy();
-                        strategyName = 'Mean Reversion + RSI';
-                        break;
-                    case 'engulfing':
-                        shouldGenerateSignal = this.checkEngulfingPatternStrategy();
-                        strategyName = 'Engulfing Pattern';
-                        break;
-                    case 'original':
-                        shouldGenerateSignal = this.checkOriginalStrategy();
-                        strategyName = 'Original (EMA + Vela)';
-                        break;
-                    // Nuevas estrategias por rondas
-                    case 'confirmacion_doble':
-                        shouldGenerateSignal = this.checkConfirmacionDobleStrategy();
-                        strategyName = 'Confirmación Doble (72-80%)';
-                        break;
-                    case 'ronda_verde_previa':
-                        shouldGenerateSignal = this.checkRondaVerdeStrategy();
-                        strategyName = 'Ronda Verde Previa (70-77%)';
-                        break;
-                    case 'bloque_2_senales':
-                        shouldGenerateSignal = this.checkBloque2SenalesStrategy();
-                        strategyName = 'Bloque 2 Señales (68-74%)';
-                        break;
-                    case 'ventana_limpia':
-                        shouldGenerateSignal = this.checkVentanaLimpiaStrategy();
-                        strategyName = 'Ventana Limpia (67-73%)';
-                        break;
-                    case 'filtro_anti_pico':
-                        shouldGenerateSignal = this.checkFiltroAntiPicoStrategy();
-                        strategyName = 'Filtro Anti-Pico (66-72%)';
-                        break;
-                    case 'senal_escalonada':
-                        shouldGenerateSignal = this.checkSenalEscalonadaStrategy();
-                        strategyName = 'Señal Escalonada (64-70%)';
-                        break;
-                    case 'senal_unica_ciclo':
-                        shouldGenerateSignal = this.checkSenalUnicaCicloStrategy();
-                        strategyName = 'Señal Única Ciclo (62-68%)';
-                        break;
-                    case 'entrada_tardia':
-                        shouldGenerateSignal = this.checkEntradaTardiaStrategy();
-                        strategyName = 'Entrada Tardía (60-66%)';
-                        break;
-                    default:
-                        shouldGenerateSignal = this.checkOriginalStrategy();
-                        strategyName = 'Original (EMA + Vela)';
-                        break;
+                strategiesToCheck = selectedStrategies;
+            }
+
+            // Check strategies
+            for (const stratKey of strategiesToCheck) {
+                const strategy = strategyMap[stratKey];
+                if (strategy && strategy.method) {
+                    // Bind this context
+                    if (strategy.method.call(this)) {
+                        shouldGenerateSignal = true;
+                        strategyName = strategy.name;
+                        break; // Stop on first match (priority based on array order)
+                    }
                 }
             }
 
@@ -2627,19 +2663,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (this.signalState.status === 'entrada_pending') {
-                if (valueFromButton >= THRESHOLD_APUESTA_1_WIN_BUTTON_VALUE) {
-                    // Win condition: 2.00x or higher
+                // Determine Win/Loss based on targetMultiplier
+                let isWin = false;
+                if (originalMultiplier !== null) {
+                    isWin = originalMultiplier >= targetMultiplier;
+                } else {
+                    let thresholdButtonVal = 1; // Default for 2.00x
+                    if (targetMultiplier <= 1.50) thresholdButtonVal = -2;
+                    else if (targetMultiplier <= 1.80) thresholdButtonVal = -1;
+                    isWin = valueFromButton >= thresholdButtonVal;
+                }
+
+                if (isWin) {
+                    // Win condition
                     this.sessionStats.hits++;
                     this.displaySignalMessage('acierto', '¡ACIERTO!');
                     let profit = 0;
                     if (this.bankManagementEnabled) {
                         // Round the bet amount to ensure precision
                         const betAmount = parseFloat(this.activeApuesta1_amount.toFixed(2));
-                        // When winning, add DOUBLE of what was bet (bet was already deducted)
-                        const winningsToAdd = parseFloat((betAmount * 2).toFixed(2));
-                        // Net profit = double bet - bet = bet (since bet was already deducted)
-                        profit = parseFloat(betAmount.toFixed(2));
-                        // Add double the bet amount back (bet was already deducted, so this gives us: bank - bet + (bet * 2) = bank + bet)
+                        // When winning, add payout based on targetMultiplier
+                        const winningsToAdd = parseFloat((betAmount * targetMultiplier).toFixed(2));
+                        // Net profit = payout - bet (bet was already deducted)
+                        profit = parseFloat((winningsToAdd - betAmount).toFixed(2));
+                        // Add payout back to bank
                         this.safeBankUpdate(winningsToAdd);
                         // Update bank display immediately after win
                         this.updateBankAndApuestaDisplays();
@@ -2703,8 +2750,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.addDataPoint(valueFromButton, miniValue, buttonOriginalValue, originalMultiplier, hora);
 
             } else if (this.signalState.status === 'awaiting_result') {
-                if (valueFromButton >= THRESHOLD_APUESTA_2_WIN_BUTTON_VALUE) {
-                    // Win condition on second attempt: 2.00x or higher
+                // Determine Win/Loss based on targetMultiplier
+                let isWin = false;
+                if (originalMultiplier !== null) {
+                    isWin = originalMultiplier >= targetMultiplier;
+                } else {
+                    let thresholdButtonVal = 1; // Default for 2.00x
+                    if (targetMultiplier <= 1.50) thresholdButtonVal = -2;
+                    else if (targetMultiplier <= 1.80) thresholdButtonVal = -1;
+                    isWin = valueFromButton >= thresholdButtonVal;
+                }
+
+                if (isWin) {
+                    // Win condition on second attempt
                     this.sessionStats.hits++;
                     this.displaySignalMessage('acierto', '¡ACIERTO!');
                     let profit = 0;
@@ -2712,13 +2770,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Round the bet amounts to ensure precision
                         const betAmount1 = parseFloat(this.activeApuesta1_amount.toFixed(2));
                         const betAmount2 = parseFloat(this.activeApuesta2_amount.toFixed(2));
-                        // When winning, add DOUBLE of what was bet in attempt 2 (both bets were already deducted)
-                        const winningsToAdd = parseFloat((betAmount2 * 2).toFixed(2));
-                        // Net profit = double of apuesta2 - (apuesta1 + apuesta2)
+                        // When winning, add payout based on targetMultiplier
+                        const winningsToAdd = parseFloat((betAmount2 * targetMultiplier).toFixed(2));
+                        // Net profit = Payout - (Apuesta1 + Apuesta2)
                         // Both apuesta1 and apuesta2 were already deducted from bank
                         profit = parseFloat((winningsToAdd - betAmount1 - betAmount2).toFixed(2));
-                        // Add double the bet amount back (since both bets were already deducted)
-                        // This gives us: bank - apuesta1 - apuesta2 + (apuesta2 * 2) = bank + apuesta2 - apuesta1
+                        // Add payout back to bank
                         this.safeBankUpdate(winningsToAdd);
                         // Update bank display immediately after win
                         this.updateBankAndApuestaDisplays();
@@ -3296,6 +3353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Handle Aviator mode (automatic or manual)
         const manualInputButtons = document.getElementById('manual-input-buttons');
         const apiResultsPanel = document.getElementById('api-results-panel');
+        const undoButton = document.getElementById('undo');
         
         console.log('startApp called - aviatorMode:', aviatorMode, 'selectedGame:', selectedGame);
         
@@ -3303,20 +3361,28 @@ document.addEventListener('DOMContentLoaded', () => {
             // Automatic mode: show API panel, hide manual buttons, start polling
             if (manualInputButtons) manualInputButtons.style.display = 'none';
             if (apiResultsPanel) apiResultsPanel.style.display = 'block';
+            if (undoButton) undoButton.style.display = 'none';
             console.log('Aviator mode: AUTOMATIC - Starting API polling');
             // Load initial data first, then start polling
-            loadInitialAPIData().then(() => {
-                startAPIPolling(2000);
-            });
+            loadInitialAPIData()
+                .then(() => {
+                    startAPIPolling(2000);
+                })
+                .catch(err => {
+                    console.error("Error loading initial data, starting polling anyway:", err);
+                    startAPIPolling(2000);
+                });
         } else if (aviatorMode === 'manual') {
             // Manual mode: show manual buttons, hide API panel, no polling
             if (manualInputButtons) manualInputButtons.style.display = 'grid';
             if (apiResultsPanel) apiResultsPanel.style.display = 'none';
+            if (undoButton) undoButton.style.display = 'inline-block';
             stopAPIPolling();
         } else {
             // Default to automatic if no mode selected (shouldn't happen)
             if (manualInputButtons) manualInputButtons.style.display = 'none';
             if (apiResultsPanel) apiResultsPanel.style.display = 'block';
+            if (undoButton) undoButton.style.display = 'none';
             startAPIPolling(2000);
         }
     }
@@ -3372,34 +3438,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Game selection event listeners
     const gameButtons = document.querySelectorAll('.game-button');
+    console.log(`Found ${gameButtons.length} game buttons`);
+    
     gameButtons.forEach(button => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', (e) => {
+            console.log('Game button clicked:', button.dataset.game);
+            
             // Remove active class from all buttons
             gameButtons.forEach(btn => btn.classList.remove('active'));
             // Add active class to clicked button
             button.classList.add('active');
+            
             // Store selected game
             selectedGame = button.dataset.game;
+            
             // Enable continue button
             if (welcomeContinueButton) {
                 welcomeContinueButton.disabled = false;
+                console.log('Continue button enabled');
+            } else {
+                console.error('Welcome continue button not found');
             }
+            
             console.log('Juego seleccionado:', selectedGame);
         });
     });
 
     // Add listener for the new continue button
-    welcomeContinueButton.addEventListener('click', () => {
-        if (selectedGame) {
-            if (selectedGame === 'aviator') {
-                // Show mode selection for Aviator
-                showAviatorModeScreen();
+    if (welcomeContinueButton) {
+        welcomeContinueButton.addEventListener('click', () => {
+            console.log('Continue button clicked. Selected game:', selectedGame);
+            
+            if (selectedGame) {
+                if (selectedGame === 'aviator') {
+                    // Show mode selection for Aviator
+                    console.log('Navigating to Aviator mode screen');
+                    showAviatorModeScreen();
+                } else if (selectedGame === 'spaceman') {
+                    // Spaceman goes directly to currency selection
+                    console.log('Navigating to Spaceman currency selection');
+                    showCurrencySelectionScreen();
+                } else {
+                     console.error('Unknown game selected:', selectedGame);
+                }
             } else {
-                // Spaceman goes directly to currency selection
-                showCurrencySelectionScreen();
+                console.warn('No game selected yet');
+                alert('Por favor, selecciona un juego para continuar.');
             }
-        }
-    });
+        });
+    } else {
+        console.error('Welcome continue button not found in DOM');
+    }
     
     // Aviator mode selection event listeners
     const modeButtons = document.querySelectorAll('.mode-button');
@@ -3542,6 +3631,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window.miniChartManager) {
                     window.miniChartManager.toggleMiniFibonacci();
                 }
+                chartAppInstance.clearSignalMessageOnNewInput();
+                chartAppInstance.clearApuestaHighlights();
+                return;
+            }
+
+            if (clickedButton.dataset.action === 'bollinger') {
+                chartAppInstance.bollingerBandsEnabled = !chartAppInstance.bollingerBandsEnabled;
+                console.log("Bollinger Bands: " + (chartAppInstance.bollingerBandsEnabled ? "Enabled" : "Disabled"));
+                chartAppInstance.updateChart();
                 chartAppInstance.clearSignalMessageOnNewInput();
                 chartAppInstance.clearApuestaHighlights();
                 return;
@@ -3805,8 +3903,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('save-settings')?.addEventListener('click', () => {
         const odds1 = parseFloat(document.getElementById('custom-odds-1').value);
         const odds2 = parseFloat(document.getElementById('custom-odds-2').value);
-        const strategySelector = document.getElementById('strategy-selector');
         
+        // Read Strategies
+        const checkboxes = document.querySelectorAll('input[name="strategy"]:checked');
+        const strategies = Array.from(checkboxes).map(cb => cb.value);
+
+        // Read Analysis Tools
+        const bPeriod = parseInt(document.getElementById('bollinger-period').value);
+        const bStdDev = parseFloat(document.getElementById('bollinger-stddev').value);
+        const fibInput = document.getElementById('fibonacci-levels').value;
+        const safeMultiplierInput = parseFloat(document.getElementById('safe-mode-multiplier').value);
+
         if (isNaN(odds1) || odds1 <= 1 || isNaN(odds2) || odds2 <= 1) {
             alert('Las odds deben ser números mayores a 1');
             return;
@@ -3817,8 +3924,30 @@ document.addEventListener('DOMContentLoaded', () => {
         soundEnabled = document.getElementById('sound-enabled').checked;
         notificationsEnabled = document.getElementById('notifications-enabled').checked;
         
-        if (strategySelector) {
-            selectedStrategy = strategySelector.value;
+        // Update Globals
+        if (strategies.length > 0) {
+            selectedStrategies = strategies;
+        } else {
+             selectedStrategies = ['original']; // Default if nothing selected
+        }
+        window.selectedStrategies = selectedStrategies;
+
+        if (!isNaN(safeMultiplierInput)) {
+            targetMultiplier = safeMultiplierInput;
+            window.targetMultiplier = targetMultiplier;
+        }
+
+        if (!isNaN(bPeriod) && bPeriod > 0) bollingerPeriod = bPeriod;
+        if (!isNaN(bStdDev) && bStdDev > 0) bollingerStdDev = bStdDev;
+        window.bollingerPeriod = bollingerPeriod;
+        window.bollingerStdDev = bollingerStdDev;
+        
+        if (fibInput) {
+            const levels = fibInput.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            if (levels.length >= 2) {
+                customFibLevels = levels.sort((a, b) => a - b);
+                window.customFibLevels = customFibLevels;
+            }
         }
         
         saveSettings();
@@ -3826,6 +3955,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (chartAppInstance) {
             chartAppInstance.calculateApuestaAmounts();
             chartAppInstance.updateBankAndApuestaDisplays();
+            chartAppInstance.updateChart(); // Redraw chart with new settings
         }
         
         document.getElementById('settings-modal')?.classList.add('hidden');
@@ -3845,4 +3975,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Remove the automatic timeout start; the bottom call remains to showWelcomeScreen()
     // Start the welcome screen flow when the DOM is fully loaded
     showWelcomeScreen();
-});
+}
+
+// Ensure initApp runs when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
