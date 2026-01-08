@@ -3972,14 +3972,20 @@ function initApp() {
         Notification.requestPermission();
     }
 
-    // Remove the automatic timeout start; the bottom call remains to showWelcomeScreen()
-    // Start the welcome screen flow when the DOM is fully loaded
-    showWelcomeScreen();
 }
 
-// Ensure initApp runs when DOM is ready
+window.initApp = initApp;
+
+const __bootInitApp = () => {
+    try {
+        initApp();
+    } catch (e) {
+        console.error('initApp failed', e);
+    }
+};
+
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+    document.addEventListener('DOMContentLoaded', __bootInitApp);
 } else {
-    initApp();
+    __bootInitApp();
 }

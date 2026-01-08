@@ -15,7 +15,7 @@
   </head>
   <body>
     <!-- Welcome Screen -->
-    <div id="welcome-screen" class="app-screen">
+    <div id="welcome-screen" class="app-screen hidden">
         <div class="card welcome-card">
             <h2 class="welcome-title">Herramienta En Prueba</h2>
             <p class="selection-subtitle" style="margin-bottom: var(--spacing-lg); text-align: center; color: var(--text-color-secondary);">Selecciona el juego</p>
@@ -32,6 +32,52 @@
             <div class="welcome-buttons">
                 <button id="welcome-continue" class="action-button" disabled>Continuar</button>
                 <button id="welcome-manual" class="action-button secondary">📖 Manual de Uso</button>
+                <button id="logout-btn" class="action-button secondary" style="background: var(--primary-color, #007bff); color: white;">Cerrar Sesión</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Screen (superpuesto) -->
+    <div id="login-screen" class="app-screen" style="display: none;">
+        <div class="card login-card">
+            <h2 class="welcome-title">Herramienta En Prueba</h2>
+            <p class="selection-subtitle" style="margin-bottom: var(--spacing-lg); text-align: center; color: var(--text-color-secondary);">Inicia sesión para continuar</p>
+            
+            <form id="login-form" style="display: flex; flex-direction: column; gap: var(--spacing-md);">
+                <div class="input-wrapper">
+                    <label for="login-email" style="display: block; margin-bottom: var(--spacing-xs); font-weight: 500; color: var(--text-color-primary);">Email</label>
+                    <input 
+                        type="email" 
+                        id="login-email" 
+                        placeholder="tu@email.com" 
+                        required
+                        style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--input-bg); color: var(--text-color-primary);"
+                    >
+                </div>
+                
+                <div class="input-wrapper">
+                    <label for="login-password" style="display: block; margin-bottom: var(--spacing-xs); font-weight: 500; color: var(--text-color-primary);">Contraseña</label>
+                    <input 
+                        type="password" 
+                        id="login-password" 
+                        placeholder="Mínimo 6 caracteres" 
+                        required
+                        minlength="6"
+                        style="width: 100%; padding: var(--spacing-sm); border: 1px solid var(--border-color); border-radius: var(--border-radius-md); background: var(--input-bg); color: var(--text-color-primary);"
+                    >
+                </div>
+
+                <div id="login-message" style="padding: var(--spacing-sm); border-radius: var(--border-radius-sm); text-align: center; font-size: 0.9em; display: none;"></div>
+                
+                <div style="display: flex; flex-direction: column; gap: var(--spacing-sm);">
+                    <button type="submit" id="login-submit" class="action-button" style="width: 100%;">
+                        <span id="login-button-text">Iniciar Sesión</span>
+                    </button>
+                </div>
+            </form>
+            
+            <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-md); border-top: 1px solid var(--border-color);">
+                <button id="login-manual" class="action-button secondary" style="width: 100%;">📖 Manual de Uso</button>
             </div>
         </div>
     </div>
@@ -181,6 +227,9 @@
                     <span class="mode-desc">Ingresa los datos manualmente</span>
                 </button>
             </div>
+            <div style="margin-top: var(--spacing-lg);">
+                <button class="back-button action-button secondary">← Atrás</button>
+            </div>
         </div>
     </div>
 
@@ -241,6 +290,9 @@
                     <span class="currency-symbol">Q</span>
                 </button>
             </div>
+            <div style="margin-top: var(--spacing-lg);">
+                <button class="back-button action-button secondary">← Atrás</button>
+            </div>
         </div>
     </div>
 
@@ -251,6 +303,9 @@
             <div class="button-group">
                 <button id="bank-yes" class="choice-button">Sí</button>
                 <button id="bank-no" class="choice-button">no</button>
+            </div>
+            <div style="margin-top: var(--spacing-lg);">
+                <button class="back-button action-button secondary">← Atrás</button>
             </div>
         </div>
     </div>
@@ -264,7 +319,10 @@
                 <input type="text" id="capital-input" placeholder="Ej: 200.000" inputmode="numeric">
             </div>
             <p class="input-hint" id="capital-input-hint" style="margin-top: 10px; font-size: 0.85em; color: var(--text-color-secondary);">Formato: usar punto (.) o coma (,) según tu moneda</p>
-            <button id="capital-continue" class="action-button">Continuar</button>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                <button id="capital-continue" class="action-button">Continuar</button>
+                <button class="back-button action-button secondary">← Atrás</button>
+            </div>
         </div>
     </div>
 
@@ -291,7 +349,10 @@
                 <p class="input-hint" id="sl-input-hint" style="margin-top: 10px; font-size: 0.85em; color: var(--text-color-secondary);">Pérdida máxima permitida</p>
             </div>
             
-            <button id="start-bank-management" class="action-button">Iniciar</button>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-lg);">
+                <button id="start-bank-management" class="action-button">Iniciar</button>
+                <button class="back-button action-button secondary">← Atrás</button>
+            </div>
         </div>
     </div>
 
@@ -830,52 +891,6 @@
     </div>
 
     
-    <script>
-        (function () {
-          let blocked = false;
-          function blockPage() {
-            if (blocked) return;
-            blocked = true;
-            document.body.innerHTML = '';
-            document.body.style.background = '#fff';
-            setTimeout(() => window.location.replace('about:blank'), 50);
-          }
-  
-          // Detectar DevTools por tamaño
-          const devtoolsThreshold = 160;
-          setInterval(() => {
-            const widthDiff = window.outerWidth - window.innerWidth;
-            const heightDiff = window.outerHeight - window.innerHeight;
-            if (widthDiff > devtoolsThreshold || heightDiff > devtoolsThreshold) blockPage();
-          }, 1000);
-  
-          // Bloquear clic derecho
-          document.addEventListener('contextmenu', e => e.preventDefault());
-  
-          // Bloquear teclas comunes: F12, Ctrl+Shift+I/J/C, Ctrl+U
-          document.addEventListener('keydown', e => {
-            if (
-              e.key === 'F12' ||
-              (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) ||
-              (e.ctrlKey && e.key === 'U')
-            ) {
-              e.preventDefault();
-              blockPage();
-            }
-          });
-  
-          // Anti-debugger ligero (no rompe React/Vite)
-          let check = false;
-          setInterval(() => {
-            check = true;
-            debugger;
-            if (!check) blockPage();
-            check = false;
-          }, 2000);
-  
-        })();
-      </script>
-                                        
     <script src="https://d3js.org/d3.v7.min.js"></script>   
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@2.0.2/build/global/luxon.min.js"></script>
@@ -883,6 +898,111 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
     <script type="module" src="/src/spaceman-app.js"></script>
     <script type="module" src="/src/mini-chart.js"></script>
-    <script type="module" src="/src/script.js"></script>
+
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- Login Script - Solo control de visibilidad + carga diferida de script.js -->
+    <script>
+        // Configuración de Supabase
+        const { createClient } = supabase;
+        const supabaseClient = createClient(
+            'https://fmatwdnyeteqtmpvkvhp.supabase.co',
+            'sb_publishable_B8jIdLiyq8F2016Keexa8A__n6aH0Wa'
+        );
+
+        // Función simple de login
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('login-email')?.value?.trim();
+            const password = document.getElementById('login-password')?.value;
+            
+            if (!email || !password) {
+                alert('Por favor completa email y contraseña');
+                return;
+            }
+            
+            if (password.length < 6) {
+                alert('La contraseña debe tener al menos 6 caracteres');
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                
+                if (error) {
+                    alert('Error: ' + error.message);
+                } else {
+                    alert('¡Login exitoso!');
+                    // Recargar para que script.js tome el control
+                    location.reload();
+                }
+            } catch (error) {
+                alert('Error inesperado: ' + error.message);
+            }
+        }
+
+        // Control de visibilidad del login
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Login visibility script loaded');
+            
+            // Verificar si hay sesión activa
+            supabaseClient.auth.getSession().then(({ data: { session } }) => {
+                const loginScreen = document.getElementById('login-screen');
+                const welcomeScreen = document.getElementById('welcome-screen');
+                const logoutBtn = document.getElementById('logout-btn');
+                const loginManualBtn = document.getElementById('login-manual');
+                
+                if (session?.user) {
+                    console.log('User already logged in, hiding login');
+                    // Ocultar login si existe
+                    if (loginScreen) {
+                        loginScreen.style.display = 'none';
+                    }
+
+                    if (welcomeScreen) {
+                        welcomeScreen.classList.remove('hidden');
+                    }
+
+                    if (logoutBtn) {
+                        logoutBtn.addEventListener('click', async () => {
+                            try {
+                                await supabaseClient.auth.signOut();
+                            } finally {
+                                location.reload();
+                            }
+                        });
+                    }
+
+                    // Cargar script.js SOLO cuando hay sesión
+                    import('/src/script.js');
+                } else {
+                    console.log('No active session, showing login');
+                    // Mostrar login si no hay sesión
+                    if (loginScreen) {
+                        loginScreen.style.display = 'flex';
+                    }
+
+                    if (welcomeScreen) {
+                        welcomeScreen.classList.add('hidden');
+                    }
+
+                    if (loginManualBtn) {
+                        loginManualBtn.addEventListener('click', () => {
+                            const modal = document.getElementById('manual-modal');
+                            if (modal) modal.classList.remove('hidden');
+                        });
+                    }
+                        
+                    // Atachar evento al formulario
+                    const form = document.getElementById('login-form');
+                    if (form) {
+                        form.addEventListener('submit', handleLogin);
+                    }
+                }
+            });
+        });
+    </script>
   </body>
 </html>
