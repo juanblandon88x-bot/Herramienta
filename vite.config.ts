@@ -11,7 +11,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/1win': {
-        target: 'https://test-zedd.onrender.com',
+        target: 'https://test-eight-sepia-52.vercel.app',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/1win/, '/1win'),
       },
