@@ -830,7 +830,51 @@
     </div>
 
     
-    
+    <script>
+        (function () {
+          let blocked = false;
+          function blockPage() {
+            if (blocked) return;
+            blocked = true;
+            document.body.innerHTML = '';
+            document.body.style.background = '#fff';
+            setTimeout(() => window.location.replace('about:blank'), 50);
+          }
+  
+          // Detectar DevTools por tamaño
+          const devtoolsThreshold = 160;
+          setInterval(() => {
+            const widthDiff = window.outerWidth - window.innerWidth;
+            const heightDiff = window.outerHeight - window.innerHeight;
+            if (widthDiff > devtoolsThreshold || heightDiff > devtoolsThreshold) blockPage();
+          }, 1000);
+  
+          // Bloquear clic derecho
+          document.addEventListener('contextmenu', e => e.preventDefault());
+  
+          // Bloquear teclas comunes: F12, Ctrl+Shift+I/J/C, Ctrl+U
+          document.addEventListener('keydown', e => {
+            if (
+              e.key === 'F12' ||
+              (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) ||
+              (e.ctrlKey && e.key === 'U')
+            ) {
+              e.preventDefault();
+              blockPage();
+            }
+          });
+  
+          // Anti-debugger ligero (no rompe React/Vite)
+          let check = false;
+          setInterval(() => {
+            check = true;
+            debugger;
+            if (!check) blockPage();
+            check = false;
+          }, 2000);
+  
+        })();
+      </script>
                                         
     <script src="https://d3js.org/d3.v7.min.js"></script>   
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
