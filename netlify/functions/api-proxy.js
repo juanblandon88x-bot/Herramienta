@@ -2,7 +2,7 @@
 
 export const handler = async (event, context) => {
   // URL de la API remota (definir en Netlify env var o usar fallback)
-  const API_URL = process.env.API_URL || 'https://test-zedd.onrender.com/1win';
+  const API_URL = process.env.API_URL || 'https://test-eight-sepia-52.vercel.app/1win';
 
   try {
     // Configurar método y body según la solicitud del frontend
