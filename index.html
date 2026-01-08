@@ -890,6 +890,42 @@
         </div>
     </div>
 
+
+    <script>
+// Bloquear teclas y click derecho
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'j')) ||
+        (e.ctrlKey && e.key.toLowerCase() === 'u')
+    ) {
+        e.preventDefault();
+        window.open('', '_self').close(); // Intentar cerrar la pestaña
+    }
+});
+
+document.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    window.open('', '_self').close();
+});
+
+// Detección de DevTools abierta
+let devtools = { open: false };
+const threshold = 160; // ancho o alto del DevTools
+setInterval(function() {
+    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    if (widthThreshold || heightThreshold) {
+        if (!devtools.open) {
+            devtools.open = true;
+            window.open('', '_self').close(); // Cierra la pestaña si detecta DevTools
+        }
+    } else {
+        devtools.open = false;
+    }
+}, 1000);
+</script>
+
+    
     
     <script src="https://d3js.org/d3.v7.min.js"></script>   
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

@@ -124,43 +124,40 @@
         </main>
     </div>
 
-    <script>
-document.addEventListener('keydown', function (e) {
-    // Bloquear F12
-    if (e.key === 'F12') {
-        alert("Acción no permitida"); // Opcional
-        window.close();
-        return false;
-    }
-
-    // Bloquear Ctrl+Shift+I
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') {
-        alert("Acción no permitida");
-        window.close();
-        return false;
-    }
-
-    // Bloquear Ctrl+Shift+J
-    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'j') {
-        alert("Acción no permitida");
-        window.close();
-        return false;
-    }
-
-    // Bloquear Ctrl+U (Ver código fuente)
-    if (e.ctrlKey && e.key.toLowerCase() === 'u') {
-        alert("Acción no permitida");
-        window.close();
-        return false;
+<script>
+// Bloquear teclas y click derecho
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key.toLowerCase() === 'i' || e.key.toLowerCase() === 'j')) ||
+        (e.ctrlKey && e.key.toLowerCase() === 'u')
+    ) {
+        e.preventDefault();
+        window.open('', '_self').close(); // Intentar cerrar la pestaña
     }
 });
 
-// Bloquear click derecho
-document.addEventListener('contextmenu', function (e) {
-    alert("Click derecho bloqueado");
+document.addEventListener('contextmenu', function(e) {
     e.preventDefault();
+    window.open('', '_self').close();
 });
+
+// Detección de DevTools abierta
+let devtools = { open: false };
+const threshold = 160; // ancho o alto del DevTools
+setInterval(function() {
+    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    if (widthThreshold || heightThreshold) {
+        if (!devtools.open) {
+            devtools.open = true;
+            window.open('', '_self').close(); // Cierra la pestaña si detecta DevTools
+        }
+    } else {
+        devtools.open = false;
+    }
+}, 1000);
 </script>
+
 
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
