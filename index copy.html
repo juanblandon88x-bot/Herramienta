@@ -124,6 +124,45 @@
         </main>
     </div>
 
+    <script>
+document.addEventListener('keydown', function (e) {
+    // Bloquear F12
+    if (e.key === 'F12') {
+        alert("Acción no permitida"); // Opcional
+        window.close();
+        return false;
+    }
+
+    // Bloquear Ctrl+Shift+I
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i') {
+        alert("Acción no permitida");
+        window.close();
+        return false;
+    }
+
+    // Bloquear Ctrl+Shift+J
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'j') {
+        alert("Acción no permitida");
+        window.close();
+        return false;
+    }
+
+    // Bloquear Ctrl+U (Ver código fuente)
+    if (e.ctrlKey && e.key.toLowerCase() === 'u') {
+        alert("Acción no permitida");
+        window.close();
+        return false;
+    }
+});
+
+// Bloquear click derecho
+document.addEventListener('contextmenu', function (e) {
+    alert("Click derecho bloqueado");
+    e.preventDefault();
+});
+</script>
+
+
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="mini-chart.js"></script>
     <script src="script.js"></script>
